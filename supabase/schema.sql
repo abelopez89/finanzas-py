@@ -1,27 +1,31 @@
 -- =========================================================
--- LJ Finanzas - Schema inicial (Etapa 1)
--- Ejecutar en el SQL Editor de Supabase
+-- finanzas-py - Schema inicial (Etapa 1)
+-- Pensado para convivir en un proyecto Supabase compartido
+-- con otras apps (ej. vacamanager, irp-py): todo vive en el
+-- esquema "finanzas_py", NUNCA en "public".
+-- Ejecutar en el SQL Editor de Supabase.
 -- =========================================================
+
+create schema if not exists finanzas_py;
 
 create extension if not exists "uuid-ossp";
 
 -- -----------------------------------------------------------------
 -- CUENTA FAMILIAR (agrupa a todos los correos/usuarios vinculados)
 -- -----------------------------------------------------------------
-create table accounts (
+create table finanzas_py.accounts (
   id uuid primary key default uuid_generate_v4(),
   nombre text not null default 'Familia',
   created_at timestamptz not null default now()
 );
 
 -- Usuarios (correos Gmail) vinculados a una cuenta.
--- auth_user_id apunta a auth.users.id (Supabase Auth).
--- Cuando se hace linkIdentity, sigue siendo el mismo auth_user_id,
--- por lo que en la práctica un solo registro cubre ambos correos.
--- Este registro extra permite, igualmente, llevar nombre visible por persona.
-create table account_users (
+-- auth_user_id apunta a auth.users.id (Supabase Auth, esquema compartido
+-- por todo el proyecto). Cuando se hace linkIdentity, sigue siendo el
+-- mismo auth_user_id, por lo que un solo registro cubre ambos correos.
+create table finanzas_py.account_users (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   auth_user_id uuid not null,
   email text not null,
   nombre text,
@@ -33,17 +37,17 @@ create table account_users (
 -- -----------------------------------------------------------------
 -- CONFIGURACION: métodos de pago y categorías
 -- -----------------------------------------------------------------
-create table payment_methods (
+create table finanzas_py.payment_methods (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   nombre text not null,
   activo boolean not null default true,
   created_at timestamptz not null default now()
 );
 
-create table categories (
+create table finanzas_py.categories (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   nombre text not null,
   activo boolean not null default true,
   created_at timestamptz not null default now()
@@ -52,9 +56,9 @@ create table categories (
 -- -----------------------------------------------------------------
 -- DESTINATARIOS DE TELEGRAM
 -- -----------------------------------------------------------------
-create table telegram_recipients (
+create table finanzas_py.telegram_recipients (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   nombre text not null,
   chat_id text not null,
   activo boolean not null default true,
@@ -64,21 +68,21 @@ create table telegram_recipients (
 -- -----------------------------------------------------------------
 -- PLANTILLAS DE GASTOS E INGRESOS MENSUALES
 -- -----------------------------------------------------------------
-create table expense_templates (
+create table finanzas_py.expense_templates (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   nombre text not null,
   dia_mes integer not null check (dia_mes between 1 and 31),
   monto numeric(14,2) not null default 0,
-  payment_method_id uuid references payment_methods(id),
-  category_id uuid references categories(id),
+  payment_method_id uuid references finanzas_py.payment_methods(id),
+  category_id uuid references finanzas_py.categories(id),
   activo boolean not null default true,
   created_at timestamptz not null default now()
 );
 
-create table income_templates (
+create table finanzas_py.income_templates (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   nombre text not null,
   dia_mes integer not null check (dia_mes between 1 and 31),
   monto numeric(14,2) not null default 0,
@@ -91,17 +95,17 @@ create table income_templates (
 -- "periodo" = fecha de inicio del ciclo de facturación (día 27) al que
 -- pertenece el movimiento, respetando el ciclo 27-26.
 -- -----------------------------------------------------------------
-create table expense_entries (
+create table finanzas_py.expense_entries (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
-  template_id uuid references expense_templates(id),
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
+  template_id uuid references finanzas_py.expense_templates(id),
   es_extra boolean not null default false,
   nombre text not null,
   periodo date not null,
   dia integer not null check (dia between 1 and 31),
   monto numeric(14,2) not null default 0,
-  payment_method_id uuid references payment_methods(id),
-  category_id uuid references categories(id),
+  payment_method_id uuid references finanzas_py.payment_methods(id),
+  category_id uuid references finanzas_py.categories(id),
   fecha_vencimiento date,               -- usado principalmente por extras
   estado text not null default 'pendiente'
     check (estado in ('pendiente','rescatado','pagado')),
@@ -110,10 +114,10 @@ create table expense_entries (
   updated_at timestamptz not null default now()
 );
 
-create table income_entries (
+create table finanzas_py.income_entries (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
-  template_id uuid references income_templates(id),
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
+  template_id uuid references finanzas_py.income_templates(id),
   es_extra boolean not null default false,
   nombre text not null,
   periodo date not null,
@@ -130,9 +134,9 @@ create table income_entries (
 -- FONDO MUTUO: saldo inicial, controles de saldo (para inferir interés)
 -- y libro mayor de movimientos confirmados
 -- -----------------------------------------------------------------
-create table fund_initial_balance (
+create table finanzas_py.fund_initial_balance (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null unique references accounts(id) on delete cascade,
+  account_id uuid not null unique references finanzas_py.accounts(id) on delete cascade,
   monto numeric(14,2) not null,
   fecha date not null,
   created_at timestamptz not null default now()
@@ -141,25 +145,25 @@ create table fund_initial_balance (
 -- Cada vez que el usuario ingresa el saldo actual del fondo (leído de su
 -- app/banco), se calcula la diferencia contra el saldo esperado por el
 -- sistema y esa diferencia se registra como interés.
-create table fund_balance_checks (
+create table finanzas_py.fund_balance_checks (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   fecha date not null,
-  monto_informado numeric(14,2) not null,   -- saldo real informado por el usuario
-  saldo_esperado_sistema numeric(14,2) not null, -- saldo calculado por la app antes del ajuste
-  interes_calculado numeric(14,2) not null, -- monto_informado - saldo_esperado_sistema
+  monto_informado numeric(14,2) not null,
+  saldo_esperado_sistema numeric(14,2) not null,
+  interes_calculado numeric(14,2) not null,
   created_at timestamptz not null default now()
 );
 
 -- Libro mayor: todo movimiento confirmado que impacta el saldo del fondo.
 -- tipo: ingreso | egreso | interes | saldo_inicial
-create table fund_movements (
+create table finanzas_py.fund_movements (
   id uuid primary key default uuid_generate_v4(),
-  account_id uuid not null references accounts(id) on delete cascade,
+  account_id uuid not null references finanzas_py.accounts(id) on delete cascade,
   tipo text not null check (tipo in ('ingreso','egreso','interes','saldo_inicial')),
-  monto numeric(14,2) not null,       -- siempre positivo; el signo lo da "tipo"
+  monto numeric(14,2) not null,
   fecha date not null,
-  referencia_tipo text,               -- 'expense_entries' | 'income_entries' | null
+  referencia_tipo text,
   referencia_id uuid,
   descripcion text,
   created_at timestamptz not null default now()
@@ -168,86 +172,96 @@ create table fund_movements (
 -- -----------------------------------------------------------------
 -- Índices útiles
 -- -----------------------------------------------------------------
-create index idx_expense_entries_periodo on expense_entries(account_id, periodo);
-create index idx_income_entries_periodo on income_entries(account_id, periodo);
-create index idx_fund_movements_fecha on fund_movements(account_id, fecha);
-create index idx_expense_entries_vencimiento on expense_entries(fecha_vencimiento) where fecha_vencimiento is not null;
+create index idx_expense_entries_periodo on finanzas_py.expense_entries(account_id, periodo);
+create index idx_income_entries_periodo on finanzas_py.income_entries(account_id, periodo);
+create index idx_fund_movements_fecha on finanzas_py.fund_movements(account_id, fecha);
+create index idx_expense_entries_vencimiento on finanzas_py.expense_entries(fecha_vencimiento) where fecha_vencimiento is not null;
 
 -- -----------------------------------------------------------------
 -- Row Level Security: cada usuario solo ve datos de su(s) cuenta(s)
 -- -----------------------------------------------------------------
-alter table accounts enable row level security;
-alter table account_users enable row level security;
-alter table payment_methods enable row level security;
-alter table categories enable row level security;
-alter table telegram_recipients enable row level security;
-alter table expense_templates enable row level security;
-alter table income_templates enable row level security;
-alter table expense_entries enable row level security;
-alter table income_entries enable row level security;
-alter table fund_initial_balance enable row level security;
-alter table fund_balance_checks enable row level security;
-alter table fund_movements enable row level security;
+alter table finanzas_py.accounts enable row level security;
+alter table finanzas_py.account_users enable row level security;
+alter table finanzas_py.payment_methods enable row level security;
+alter table finanzas_py.categories enable row level security;
+alter table finanzas_py.telegram_recipients enable row level security;
+alter table finanzas_py.expense_templates enable row level security;
+alter table finanzas_py.income_templates enable row level security;
+alter table finanzas_py.expense_entries enable row level security;
+alter table finanzas_py.income_entries enable row level security;
+alter table finanzas_py.fund_initial_balance enable row level security;
+alter table finanzas_py.fund_balance_checks enable row level security;
+alter table finanzas_py.fund_movements enable row level security;
 
 -- Función helper: cuentas a las que pertenece el usuario autenticado
-create or replace function auth_account_ids()
+create or replace function finanzas_py.auth_account_ids()
 returns setof uuid
 language sql
 security definer
 stable
 as $$
-  select account_id from account_users where auth_user_id = auth.uid();
+  select account_id from finanzas_py.account_users where auth_user_id = auth.uid();
 $$;
 
--- Política genérica reutilizada en todas las tablas con account_id
-create policy "select own account" on accounts
-  for select using (id in (select auth_account_ids()));
+create policy "select own account" on finanzas_py.accounts
+  for select using (id in (select finanzas_py.auth_account_ids()));
 
-create policy "select own account_users" on account_users
-  for select using (account_id in (select auth_account_ids()));
+create policy "select own account_users" on finanzas_py.account_users
+  for select using (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud payment_methods" on payment_methods
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud payment_methods" on finanzas_py.payment_methods
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud categories" on categories
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud categories" on finanzas_py.categories
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud telegram_recipients" on telegram_recipients
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud telegram_recipients" on finanzas_py.telegram_recipients
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud expense_templates" on expense_templates
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud expense_templates" on finanzas_py.expense_templates
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud income_templates" on income_templates
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud income_templates" on finanzas_py.income_templates
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud expense_entries" on expense_entries
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud expense_entries" on finanzas_py.expense_entries
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud income_entries" on income_entries
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud income_entries" on finanzas_py.income_entries
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud fund_initial_balance" on fund_initial_balance
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud fund_initial_balance" on finanzas_py.fund_initial_balance
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud fund_balance_checks" on fund_balance_checks
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud fund_balance_checks" on finanzas_py.fund_balance_checks
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
-create policy "crud fund_movements" on fund_movements
-  for all using (account_id in (select auth_account_ids()))
-  with check (account_id in (select auth_account_ids()));
+create policy "crud fund_movements" on finanzas_py.fund_movements
+  for all using (account_id in (select finanzas_py.auth_account_ids()))
+  with check (account_id in (select finanzas_py.auth_account_ids()));
 
 -- -----------------------------------------------------------------
--- Trigger: cuando un usuario nuevo se autentica por primera vez,
--- crear su cuenta familiar automáticamente si no tiene ninguna.
--- (Se invoca desde la app tras el primer login, ver src/lib/supabase/onboarding.ts)
+-- IMPORTANTE: exponer el esquema en la API de Supabase
+-- Dashboard > Project Settings > API > Exposed schemas
+-- Agregar "finanzas_py" a la lista (junto a "public", sin sacarlo).
+-- Sin este paso, el cliente de Supabase no va a poder leer estas tablas.
 -- -----------------------------------------------------------------
+
+-- -----------------------------------------------------------------
+-- Otorgar permisos de uso del esquema a los roles estándar de Supabase
+-- (necesario porque el esquema es nuevo, no viene con permisos por defecto)
+-- -----------------------------------------------------------------
+grant usage on schema finanzas_py to anon, authenticated, service_role;
+grant all on all tables in schema finanzas_py to anon, authenticated, service_role;
+grant all on all sequences in schema finanzas_py to anon, authenticated, service_role;
+alter default privileges in schema finanzas_py grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema finanzas_py grant all on sequences to anon, authenticated, service_role;

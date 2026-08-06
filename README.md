@@ -23,11 +23,26 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 ## Puesta en marcha
 
 ### 1. Supabase
-1. Crear un proyecto en [supabase.com](https://supabase.com).
-2. En el SQL Editor, ejecutar el contenido de `supabase/schema.sql`.
-3. En Authentication > Providers, habilitar Google y cargar el Client ID / Secret de Google Cloud.
-4. En Authentication > URL Configuration, agregar como Redirect URL:
-   `https://<tu-dominio>.vercel.app/api/auth/callback` (y `http://localhost:3000/api/auth/callback` para desarrollo local).
+> Este proyecto está pensado para **compartir un proyecto de Supabase existente**
+> (por ejemplo `vacamanager` o `irp-py`) sin afectar esas apps: todas las
+> tablas de finanzas-py viven en su propio esquema de Postgres, `finanzas_py`,
+> separado de `public`. También podés usar un proyecto nuevo si preferís;
+> el esquema dedicado funciona igual en ambos casos.
+
+1. Elegí el proyecto de Supabase a usar (existente o nuevo).
+2. En el SQL Editor, ejecutar el contenido de `supabase/schema.sql`. Esto crea el esquema `finanzas_py` y todas las tablas ahí adentro — no toca nada de `public` ni de otros esquemas.
+3. **Paso obligatorio y fácil de olvidar**: ir a Project Settings > API > "Exposed schemas" y agregar `finanzas_py` a la lista (sin sacar `public`, que puede estar en uso por las otras apps). Sin este paso, el cliente de Supabase no puede leer ni escribir estas tablas.
+4. En Authentication > Providers, habilitar Google y cargar el Client ID / Secret de Google Cloud (si ya está habilitado por otra app del mismo proyecto, no hay que volver a configurarlo).
+5. En Authentication > URL Configuration, agregar como Redirect URL:
+   `https://<tu-dominio>.vercel.app/api/auth/callback` (agregarla a la lista existente, no reemplaza las de las otras apps).
+
+> **Nota sobre reutilizar el proyecto:** la tabla `auth.users` de Supabase es
+> compartida por todas las apps del mismo proyecto (es la única parte no
+> aislada por esquema). Esto no genera conflicto: si te logueás con el mismo
+> Gmail que usás en vacamanager o irp-py, simplemente ya existe ese usuario
+> en `auth.users`, y finanzas-py de todos modos solo ve y escribe filas de
+> `finanzas_py.account_users` — sus propios datos, sin mezclarse con las
+> otras apps.
 
 ### 2. Variables de entorno
 Copiar `.env.example` a `.env.local` y completar con los valores de tu proyecto de Supabase y tu bot de Telegram.

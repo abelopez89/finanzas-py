@@ -28,6 +28,8 @@ export function createSupabaseServerClient() {
           }
         },
       },
+      // Esquema dedicado: ver nota en client.ts
+      db: { schema: 'finanzas_py' },
     }
   );
 }
@@ -40,6 +42,9 @@ export function createSupabaseServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    {
+      auth: { persistSession: false },
+      db: { schema: 'finanzas_py' },
+    }
   );
 }

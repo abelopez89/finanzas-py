@@ -2,10 +2,14 @@
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
-export default function LoginPage() {
-  const supabase = createSupabaseBrowserClient();
+// Evita que Next.js intente prerenderizar esta página como estática en
+// build time. No es estrictamente necesario después de mover la creación
+// del cliente a los handlers, pero es una red de seguridad adicional.
+export const dynamic = 'force-dynamic';
 
+export default function LoginPage() {
   async function handleLogin() {
+    const supabase = createSupabaseBrowserClient();
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/api/auth/callback` },
@@ -15,6 +19,7 @@ export default function LoginPage() {
   // Se usa DESPUÉS de haber iniciado sesión con el primer correo,
   // desde una pantalla de configuración de cuenta (no en este login inicial).
   async function handleLinkSecondEmail() {
+    const supabase = createSupabaseBrowserClient();
     await supabase.auth.linkIdentity({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/api/auth/callback?link=1` },
