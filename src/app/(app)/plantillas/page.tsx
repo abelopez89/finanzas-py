@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { revalidatePath } from 'next/cache';
+import MontoInput from '@/components/MontoInput';
 
 // ------------------------- Server actions: gastos -------------------------
 
@@ -151,10 +152,8 @@ export default async function PlantillasPage() {
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
             required
           />
-          <input
+          <MontoInput
             name="monto"
-            type="number"
-            step="0.01"
             placeholder="Monto ₲"
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
@@ -214,10 +213,8 @@ export default async function PlantillasPage() {
                   defaultValue={g.dia_mes}
                   className="w-full rounded-md border border-gray-300 px-2 py-1"
                 />
-                <input
+                <MontoInput
                   name="monto"
-                  type="number"
-                  step="0.01"
                   defaultValue={g.monto}
                   className="w-full rounded-md border border-gray-300 px-2 py-1"
                 />
@@ -289,10 +286,8 @@ export default async function PlantillasPage() {
             className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
             required
           />
-          <input
+          <MontoInput
             name="monto"
-            type="number"
-            step="0.01"
             placeholder="Monto ₲"
             className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
@@ -325,10 +320,8 @@ export default async function PlantillasPage() {
                         defaultValue={i.dia_mes}
                         className="w-16 rounded-md border border-gray-300 px-2 py-1"
                       />
-                      <input
+                      <MontoInput
                         name="monto"
-                        type="number"
-                        step="0.01"
                         defaultValue={i.monto}
                         className="w-28 rounded-md border border-gray-300 px-2 py-1"
                       />

@@ -8,6 +8,7 @@ import {
   cambiarEstadoGasto,
   cambiarEstadoIngreso,
 } from '@/lib/actions/entries';
+import MontoInput from '@/components/MontoInput';
 
 const ESTADO_STYLES: Record<string, string> = {
   pendiente: 'bg-gray-100 text-gray-600',
@@ -93,10 +94,8 @@ export default async function MesActualPage() {
                           defaultValue={g.dia}
                           className="w-16 rounded-md border border-gray-300 px-2 py-1"
                         />
-                        <input
+                        <MontoInput
                           name="monto"
-                          type="number"
-                          step="0.01"
                           defaultValue={g.monto}
                           className="w-32 rounded-md border border-gray-300 px-2 py-1"
                         />
@@ -187,10 +186,8 @@ export default async function MesActualPage() {
                           defaultValue={i.dia}
                           className="w-16 rounded-md border border-gray-300 px-2 py-1"
                         />
-                        <input
+                        <MontoInput
                           name="monto"
-                          type="number"
-                          step="0.01"
                           defaultValue={i.monto}
                           className="w-32 rounded-md border border-gray-300 px-2 py-1"
                         />

@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
+import MontoInput from '@/components/MontoInput';
 import {
   addExpenseExtra,
   addIncomeExtra,
@@ -61,10 +62,8 @@ export default async function ExtrasPage() {
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
             required
           />
-          <input
+          <MontoInput
             name="monto"
-            type="number"
-            step="0.01"
             placeholder="Monto ₲"
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
@@ -124,10 +123,8 @@ export default async function ExtrasPage() {
                           value={g.dia}
                         />
                         <span className="text-xs text-gray-500">{g.fecha_vencimiento}</span>
-                        <input
+                        <MontoInput
                           name="monto"
-                          type="number"
-                          step="0.01"
                           defaultValue={g.monto}
                           className="w-32 rounded-md border border-gray-300 px-2 py-1"
                         />
@@ -199,10 +196,8 @@ export default async function ExtrasPage() {
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
             required
           />
-          <input
+          <MontoInput
             name="monto"
-            type="number"
-            step="0.01"
             placeholder="Monto ₲"
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
           />
@@ -242,10 +237,8 @@ export default async function ExtrasPage() {
                         <input type="hidden" name="_path" value="/extras" />
                         <input type="hidden" name="dia" value={i.dia} />
                         <span className="text-xs text-gray-500">{i.fecha_aplicacion}</span>
-                        <input
+                        <MontoInput
                           name="monto"
-                          type="number"
-                          step="0.01"
                           defaultValue={i.monto}
                           className="w-32 rounded-md border border-gray-300 px-2 py-1"
                         />

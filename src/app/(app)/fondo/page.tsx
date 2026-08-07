@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { calcularSaldoFondo } from '@/lib/fund';
 import { revalidatePath } from 'next/cache';
+import MontoInput from '@/components/MontoInput';
 
 async function setSaldoInicial(formData: FormData) {
   'use server';
@@ -148,10 +149,8 @@ export default async function FondoPage() {
               Se carga una única vez, para arrancar con el saldo correcto del fondo.
             </p>
             <form action={setSaldoInicial} className="flex gap-2">
-              <input
+              <MontoInput
                 name="monto"
-                type="number"
-                step="0.01"
                 placeholder="Monto ₲"
                 className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                 required
@@ -178,10 +177,8 @@ export default async function FondoPage() {
           por el sistema se registra automáticamente como interés generado.
         </p>
         <form action={registrarChequeoSaldo} className="flex gap-2">
-          <input
+          <MontoInput
             name="monto_informado"
-            type="number"
-            step="0.01"
             placeholder="Saldo actual del fondo ₲"
             className="rounded-md border border-gray-300 px-3 py-2 text-sm"
             required
