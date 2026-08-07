@@ -38,13 +38,14 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isLoginPage = request.nextUrl.pathname === '/login';
+  const hasError = request.nextUrl.searchParams.has('error');
 
   if (!user && !isLoginPage) {
     const redirectUrl = new URL('/login', request.url);
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && isLoginPage) {
+  if (user && isLoginPage && !hasError) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
