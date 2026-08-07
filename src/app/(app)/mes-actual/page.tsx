@@ -77,7 +77,7 @@ export default async function MesActualPage() {
                 <tr key={g.id}>
                   <td className="px-4 py-2 align-top">{g.nombre}</td>
                   <td className="px-4 py-2 align-top">
-                    {g.estado === 'pagado' ? (
+                    {g.estado !== 'pendiente' ? (
                       <span className="text-gray-500">
                         Día {g.dia} — ₲ {Number(g.monto).toLocaleString('es-PY')}
                       </span>

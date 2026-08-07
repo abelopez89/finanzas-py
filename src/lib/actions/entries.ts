@@ -22,7 +22,7 @@ export async function updateExpenseEntry(formData: FormData) {
     .from('expense_entries')
     .update({ dia, monto, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .neq('estado', 'pagado');
+    .eq('estado', 'pendiente'); // una vez rescatado, el monto ya salió del fondo
   revalidatePath(path);
 }
 
@@ -58,7 +58,12 @@ export async function cambiarEstadoGasto(formData: FormData) {
 
   await supabase.from('expense_entries').update(updates).eq('id', id);
 
-  if (nuevoEstado === 'pagado') {
+  // La plata sale realmente del fondo en el RESCATE, no en el pago — "pagado"
+  // solo confirma que esa plata (ya retirada) se usó. Por eso el movimiento
+  // del libro mayor se crea la primera vez que el gasto llega a "rescatado"
+  // O "pagado" (por si se salta directo de pendiente a pagado), y no se
+  // duplica ni se mueve de fecha si ya existía.
+  if (nuevoEstado === 'rescatado' || nuevoEstado === 'pagado') {
     const { data: existente } = await supabase
       .from('fund_movements')
       .select('id')
@@ -78,6 +83,7 @@ export async function cambiarEstadoGasto(formData: FormData) {
       });
     }
   } else {
+    // Se revirtió a "pendiente": el rescate se deshace, el movimiento se elimina.
     await supabase
       .from('fund_movements')
       .delete()

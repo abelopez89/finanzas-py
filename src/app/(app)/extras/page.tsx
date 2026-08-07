@@ -110,7 +110,7 @@ export default async function ExtrasPage() {
                 <tr key={g.id}>
                   <td className="px-4 py-2 align-top">{g.nombre}</td>
                   <td className="px-4 py-2 align-top">
-                    {g.estado === 'pagado' ? (
+                    {g.estado !== 'pendiente' ? (
                       <span className="text-gray-500">
                         {g.fecha_vencimiento} — ₲ {Number(g.monto).toLocaleString('es-PY')}
                       </span>

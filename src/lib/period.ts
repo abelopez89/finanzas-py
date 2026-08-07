@@ -39,3 +39,30 @@ export function formatPeriodoLabel(inicio: Date): string {
     { locale: es }
   )}`;
 }
+
+/** Etiqueta corta para gráficos: "jul '26" */
+export function formatPeriodoCorto(inicio: Date): string {
+  return format(inicio, "MMM ''yy", { locale: es });
+}
+
+/** Devuelve los últimos N períodos (inicio de cada uno), en orden ascendente,
+ * terminando en el período vigente. */
+export function getPeriodosAnteriores(n: number, desde: Date = new Date()): Date[] {
+  const actual = getInicioPeriodoActual(desde);
+  const periodos: Date[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    periodos.push(addMonths(actual, -i));
+  }
+  return periodos;
+}
+
+/** Devuelve los próximos N períodos (inicio de cada uno) DESPUÉS del vigente,
+ * en orden ascendente. */
+export function getPeriodosSiguientes(n: number, desde: Date = new Date()): Date[] {
+  const actual = getInicioPeriodoActual(desde);
+  const periodos: Date[] = [];
+  for (let i = 1; i <= n; i++) {
+    periodos.push(addMonths(actual, i));
+  }
+  return periodos;
+}

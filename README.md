@@ -29,9 +29,16 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 - `/fondo`: carga única de saldo inicial; registro del saldo real informado por el usuario con cálculo automático del interés generado (diferencia contra el saldo calculado por el sistema); historial de chequeos de saldo; libro mayor de los últimos movimientos del fondo
 - Las acciones de edición/estado de movimientos (`updateExpenseEntry`, `cambiarEstadoGasto`, etc.) se centralizaron en `src/lib/actions/entries.ts`, compartidas entre `/mes-actual` y `/extras`
 - Fix de alineación de columnas en la tabla de plantillas de gastos (se pasó de una tabla HTML con `colSpan` a un grid CSS por fila)
+- **Fix de fondo**: el egreso del fondo ahora se registra en el momento del "rescate" (que es cuando la plata realmente sale del fondo mutuo), no al marcar "pagado" — antes solo se registraba al pagar, lo cual no reflejaba el saldo real del fondo. Una vez rescatado, el monto queda bloqueado para edición.
+
+**Etapa 4 — completada:** dashboard, previsiones y extracto.
+- `/` (Dashboard): saldo actual del fondo, gráfico de ingresos vs. egresos de los últimos 6 períodos, y tabla de próximos vencimientos del período vigente
+- `/previsiones`: proyección de saldo a 12 períodos, asumiendo que las plantillas activas se repiten; arranca del saldo real ajustado por lo pendiente del período actual; alerta si el saldo proyectado se vuelve negativo, con la fila resaltada en rojo (igual que el Excel anterior); gráfico de evolución
+- `/extracto`: descarga en CSV de los movimientos confirmados del fondo, filtrado por rango de fechas
+
+**Nota de diseño**: a diferencia del Excel anterior, las plantillas de este sistema no tienen banderas mes a mes (como las columnas Ene–Dic para "Cuota Rafa"/"Cuota Benja" aplicando solo Feb–Nov). Por ahora todas las plantillas activas se proyectan como recurrentes en todos los períodos. Si hace falta ese nivel de detalle estacional, se puede agregar como mejora — avisame si lo querés para la próxima etapa.
 
 **Próximas etapas:**
-4. Dashboard con gráficos, previsiones a 12 meses, extracto descargable
 5. Lógica completa de notificaciones diarias por Telegram
 
 ## Puesta en marcha
