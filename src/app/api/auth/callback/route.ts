@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error desconocido al iniciar sesión';
+      const message =
+        (err as { message?: string })?.message ??
+        (typeof err === 'string' ? err : JSON.stringify(err));
       console.error('Error en callback de auth:', err);
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
     }
