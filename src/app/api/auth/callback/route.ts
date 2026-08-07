@@ -8,29 +8,35 @@ export async function GET(request: NextRequest) {
   const isLinking = searchParams.get('link') === '1';
 
   if (code) {
-    const supabase = createSupabaseServerClient();
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    try {
+      const supabase = createSupabaseServerClient();
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error && data.user) {
-      const email = data.user.email!;
-      const userId = data.user.id;
+      if (error) throw error;
 
-      if (isLinking) {
-        // El usuario ya tenía una cuenta; buscamos su account_id existente
-        // y le sumamos este nuevo correo a la misma cuenta.
-        const { data: existing } = await supabase
-          .from('account_users')
-          .select('account_id')
-          .eq('auth_user_id', userId)
-          .limit(1)
-          .maybeSingle();
+      if (data.user) {
+        const email = data.user.email!;
+        const userId = data.user.id;
 
-        if (existing) {
-          await linkAdditionalEmail(supabase, existing.account_id, userId, email);
+        if (isLinking) {
+          const { data: existing } = await supabase
+            .from('account_users')
+            .select('account_id')
+            .eq('auth_user_id', userId)
+            .limit(1)
+            .maybeSingle();
+
+          if (existing) {
+            await linkAdditionalEmail(supabase, existing.account_id, userId, email);
+          }
+        } else {
+          await ensureAccountForUser(supabase, userId, email);
         }
-      } else {
-        await ensureAccountForUser(supabase, userId, email);
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido al iniciar sesión';
+      console.error('Error en callback de auth:', err);
+      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
     }
   }
 

@@ -7,7 +7,11 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 // del cliente a los handlers, pero es una red de seguridad adicional.
 export const dynamic = 'force-dynamic';
 
-export default function LoginPage() {
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: { error?: string };
+}) {
   async function handleLogin() {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signInWithOAuth({
@@ -32,6 +36,11 @@ export default function LoginPage() {
       <p className="mb-8 text-sm text-gray-500">
         Ingresá con tu cuenta de Google para gestionar el fondo familiar.
       </p>
+      {searchParams.error && (
+        <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          {searchParams.error}
+        </p>
+      )}
       <button
         onClick={handleLogin}
         className="w-full rounded-md bg-brand-600 px-4 py-2 text-white hover:bg-brand-700"

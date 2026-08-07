@@ -206,8 +206,21 @@ $$;
 create policy "select own account" on finanzas_py.accounts
   for select using (id in (select finanzas_py.auth_account_ids()));
 
+create policy "insert own account" on finanzas_py.accounts
+  for insert to authenticated
+  with check (true);
+
 create policy "select own account_users" on finanzas_py.account_users
   for select using (account_id in (select finanzas_py.auth_account_ids()));
+
+create policy "insert own account_users" on finanzas_py.account_users
+  for insert to authenticated
+  with check (auth_user_id = auth.uid());
+
+create policy "update own account_users" on finanzas_py.account_users
+  for update to authenticated
+  using (auth_user_id = auth.uid())
+  with check (auth_user_id = auth.uid());
 
 create policy "crud payment_methods" on finanzas_py.payment_methods
   for all using (account_id in (select finanzas_py.auth_account_ids()))
