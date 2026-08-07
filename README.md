@@ -9,13 +9,20 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 - Next.js 14 + TypeScript + Tailwind
 - Autenticación con Google vía Supabase, con soporte para vincular un
   segundo correo Gmail a la misma cuenta familiar (`linkIdentity`)
-- Schema completo de base de datos con Row Level Security (`supabase/schema.sql`)
+- Schema completo de base de datos con Row Level Security (`supabase/schema.sql`), en esquema dedicado `finanzas_py` para convivir con otras apps del mismo proyecto Supabase
 - Configuración: métodos de pago, categorías, destinatarios de Telegram
 - Endpoint de cron protegido por secreto, listo para recibir la llamada
   diaria de cron-job.org (lógica de negocio completa se agrega en Etapa 5)
 
+**Etapa 2 — completada:** plantillas y aplicación mensual.
+- `/plantillas`: alta, edición (día/monto/método/categoría) y activación de plantillas de gastos e ingresos mensuales
+- `/mes-actual`: respeta el ciclo de facturación 27–26; botón para generar los movimientos del período vigente a partir de las plantillas activas (sin duplicar si ya existen)
+- Edición de día/monto por movimiento del mes sin afectar la plantilla
+- Estados de gasto: pendiente → rescatado → pagado (con reversa)
+- Estados de ingreso: pendiente → confirmado (con reversa)
+- Al marcar un gasto como "pagado" o un ingreso como "confirmado", se genera automáticamente el movimiento correspondiente en el libro mayor del fondo (`fund_movements`); si se revierte el estado, el movimiento se elimina para mantener el saldo consistente
+
 **Próximas etapas:**
-2. Plantillas de gastos/ingresos + aplicación mensual con estados (pendiente/rescatado/pagado, pendiente/confirmado)
 3. Extras, carga de saldo del fondo y cálculo automático de interés
 4. Dashboard con gráficos, previsiones a 12 meses, extracto descargable
 5. Lógica completa de notificaciones diarias por Telegram
