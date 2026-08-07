@@ -8,6 +8,8 @@ import {
   updateIncomeEntry,
   cambiarEstadoGasto,
   cambiarEstadoIngreso,
+  deleteExpenseEntry,
+  deleteIncomeEntry,
 } from '@/lib/actions/entries';
 import MontoInput from '@/components/MontoInput';
 
@@ -246,6 +248,13 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
                           <button className="text-xs text-gray-400 hover:underline">Revertir</button>
                         </form>
                       )}
+                      {g.estado === 'pendiente' && (
+                        <form action={deleteExpenseEntry}>
+                          <input type="hidden" name="id" value={g.id} />
+                          <input type="hidden" name="_path" value="/mes-actual" />
+                          <button className="text-xs text-red-400 hover:underline">Eliminar</button>
+                        </form>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -326,6 +335,13 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
                           <input type="hidden" name="_path" value="/mes-actual" />
                           <input type="hidden" name="nuevo_estado" value="confirmado" />
                           <button className="text-xs text-brand-600 hover:underline">Confirmado</button>
+                        </form>
+                      )}
+                      {i.estado !== 'confirmado' && (
+                        <form action={deleteIncomeEntry}>
+                          <input type="hidden" name="id" value={i.id} />
+                          <input type="hidden" name="_path" value="/mes-actual" />
+                          <button className="text-xs text-red-400 hover:underline">Eliminar</button>
                         </form>
                       )}
                       {i.estado === 'confirmado' && (

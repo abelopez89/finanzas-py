@@ -48,6 +48,7 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 **Ajustes adicionales:**
 - **Movimientos ahora muestra solo confirmados**: gastos pagados e ingresos confirmados únicamente (antes mostraba todo, incluyendo pendientes). Se sacó el filtro de "Estado" de la pantalla porque ya no aporta (todo lo que aparece está confirmado por definición).
 - **Previsiones ahora suma extras futuros**: si cargás un gasto o ingreso extra en `/extras` con una fecha futura, se va a sumar automáticamente al período que le corresponde en la proyección de 12 meses (se marca con una etiqueta "+ extra" en la tabla). Esto requirió corregir un bug: el campo `periodo` de un extra se calculaba con la fecha de HOY en vez de con la fecha de vencimiento/aplicación elegida, por lo que un extra futuro terminaba mal ubicado.
+- **Eliminar en Mes Actual**: los gastos/ingresos generados desde plantillas ahora se pueden borrar individualmente (solo si están en estado "pendiente" — si ya está rescatado/pagado/confirmado hay que revertir primero). Borrar un movimiento del mes nunca toca la plantilla de origen, y editar/desactivar una plantilla nunca afecta movimientos ya generados o confirmados — son filas independientes por diseño, y la base de datos lo refuerza a nivel estructural.
 
 **Próximas etapas:**
 5. Lógica completa de notificaciones diarias por Telegram

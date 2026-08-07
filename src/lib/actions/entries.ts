@@ -286,3 +286,26 @@ export async function deleteIncomeExtra(formData: FormData) {
   await supabase.from('income_entries').delete().eq('id', id).eq('estado', 'pendiente');
   revalidatePath('/extras');
 }
+
+// ------------------------------ Eliminar movimientos del mes ------------------------------
+
+/**
+ * Borra un movimiento generado (regular o extra), solo si sigue en estado
+ * "pendiente" — así nunca se borra algo que ya afectó el fondo. NO toca la
+ * plantilla de la que se generó (son filas independientes).
+ */
+export async function deleteExpenseEntry(formData: FormData) {
+  const id = String(formData.get('id'));
+  const path = String(formData.get('_path') || '/mes-actual');
+  const supabase = createSupabaseServerClient();
+  await supabase.from('expense_entries').delete().eq('id', id).eq('estado', 'pendiente');
+  revalidatePath(path);
+}
+
+export async function deleteIncomeEntry(formData: FormData) {
+  const id = String(formData.get('id'));
+  const path = String(formData.get('_path') || '/mes-actual');
+  const supabase = createSupabaseServerClient();
+  await supabase.from('income_entries').delete().eq('id', id).eq('estado', 'pendiente');
+  revalidatePath(path);
+}
