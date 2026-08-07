@@ -19,28 +19,58 @@ const ESTADO_STYLES: Record<string, string> = {
   confirmado: 'bg-brand-100 text-brand-700',
 };
 
-export default async function ExtrasPage() {
+type Filtros = {
+  q?: string;
+  estado?: string;
+  desde?: string;
+  hasta?: string;
+};
+
+export default async function ExtrasPage({ searchParams }: { searchParams: Filtros }) {
   const accountId = await getCurrentAccountId();
   const supabase = createSupabaseServerClient();
 
-  const [{ data: gastos }, { data: ingresos }, { data: metodos }, { data: categorias }] = accountId
+  let gastosQuery = accountId
+    ? supabase.from('expense_entries').select('*').eq('account_id', accountId).eq('es_extra', true)
+    : null;
+  let ingresosQuery = accountId
+    ? supabase.from('income_entries').select('*').eq('account_id', accountId).eq('es_extra', true)
+    : null;
+
+  if (gastosQuery && ingresosQuery) {
+    if (searchParams.q) {
+      gastosQuery = gastosQuery.ilike('nombre', `%${searchParams.q}%`);
+      ingresosQuery = ingresosQuery.ilike('nombre', `%${searchParams.q}%`);
+    }
+    if (searchParams.estado) {
+      gastosQuery = gastosQuery.eq('estado', searchParams.estado);
+      ingresosQuery = ingresosQuery.eq('estado', searchParams.estado);
+    }
+    if (searchParams.desde) {
+      gastosQuery = gastosQuery.gte('fecha_vencimiento', searchParams.desde);
+      ingresosQuery = ingresosQuery.gte('fecha_aplicacion', searchParams.desde);
+    }
+    if (searchParams.hasta) {
+      gastosQuery = gastosQuery.lte('fecha_vencimiento', searchParams.hasta);
+      ingresosQuery = ingresosQuery.lte('fecha_aplicacion', searchParams.hasta);
+    }
+  }
+
+  const [{ data: metodos }, { data: categorias }, { data: gastos }, { data: ingresos }] = accountId
     ? await Promise.all([
-        supabase
-          .from('expense_entries')
-          .select('*')
-          .eq('account_id', accountId)
-          .eq('es_extra', true)
-          .order('fecha_vencimiento', { ascending: false }),
-        supabase
-          .from('income_entries')
-          .select('*')
-          .eq('account_id', accountId)
-          .eq('es_extra', true)
-          .order('fecha_aplicacion', { ascending: false }),
         supabase.from('payment_methods').select('*').eq('account_id', accountId).eq('activo', true),
         supabase.from('categories').select('*').eq('account_id', accountId).eq('activo', true),
+        gastosQuery!.order('fecha_vencimiento', { ascending: false }),
+        ingresosQuery!.order('fecha_aplicacion', { ascending: false }),
       ])
     : [{ data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }];
+
+  const totalGastos = (gastos ?? []).reduce((a, g) => a + Number(g.monto), 0);
+  const totalIngresos = (ingresos ?? []).reduce((a, i) => a + Number(i.monto), 0);
+
+  const hayFiltros = Boolean(
+    searchParams.q || searchParams.estado || searchParams.desde || searchParams.hasta
+  );
 
   return (
     <div className="space-y-10">
@@ -50,6 +80,59 @@ export default async function ExtrasPage() {
           Gastos e ingresos puntuales que no forman parte de las plantillas mensuales.
         </p>
       </div>
+
+      {/* ------------------------- Filtros ------------------------- */}
+      <form method="GET" className="flex flex-wrap items-end gap-3 rounded-md border border-gray-200 bg-white p-4">
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Nombre</label>
+          <input
+            name="q"
+            defaultValue={searchParams.q ?? ''}
+            placeholder="Buscar..."
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Estado</label>
+          <select
+            name="estado"
+            defaultValue={searchParams.estado ?? ''}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="">Todos</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="rescatado">Rescatado</option>
+            <option value="pagado">Pagado</option>
+            <option value="confirmado">Confirmado</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Desde</label>
+          <input
+            name="desde"
+            type="date"
+            defaultValue={searchParams.desde ?? ''}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Hasta</label>
+          <input
+            name="hasta"
+            type="date"
+            defaultValue={searchParams.hasta ?? ''}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
+          Filtrar
+        </button>
+        {hayFiltros && (
+          <a href="/extras" className="text-sm text-gray-400 hover:underline">
+            Limpiar filtros
+          </a>
+        )}
+      </form>
 
       {/* ------------------------- Gastos extra ------------------------- */}
       <section>
@@ -94,6 +177,10 @@ export default async function ExtrasPage() {
           </button>
         </form>
 
+        <div className="mb-2 text-right text-sm text-gray-500">
+          Total filtrado: <strong className="text-gray-800">₲ {totalGastos.toLocaleString('es-PY')}</strong>
+        </div>
+
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
@@ -117,11 +204,7 @@ export default async function ExtrasPage() {
                       <form action={updateExpenseEntry} className="flex items-center gap-2">
                         <input type="hidden" name="id" value={g.id} />
                         <input type="hidden" name="_path" value="/extras" />
-                        <input
-                          name="dia"
-                          type="hidden"
-                          value={g.dia}
-                        />
+                        <input name="dia" type="hidden" value={g.dia} />
                         <span className="text-xs text-gray-500">{g.fecha_vencimiento}</span>
                         <MontoInput
                           name="monto"
@@ -176,7 +259,7 @@ export default async function ExtrasPage() {
               {(gastos ?? []).length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    Todavía no hay gastos extra cargados.
+                    No hay gastos extra que coincidan con los filtros.
                   </td>
                 </tr>
               )}
@@ -211,6 +294,10 @@ export default async function ExtrasPage() {
             Agregar
           </button>
         </form>
+
+        <div className="mb-2 text-right text-sm text-gray-500">
+          Total filtrado: <strong className="text-gray-800">₲ {totalIngresos.toLocaleString('es-PY')}</strong>
+        </div>
 
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
           <table className="w-full text-sm">
@@ -282,7 +369,7 @@ export default async function ExtrasPage() {
               {(ingresos ?? []).length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    Todavía no hay ingresos extra cargados.
+                    No hay ingresos extra que coincidan con los filtros.
                   </td>
                 </tr>
               )}

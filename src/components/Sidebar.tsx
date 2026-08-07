@@ -16,10 +16,8 @@ const links = [
   { href: '/extras', label: 'Extras' },
   { href: '/fondo', label: 'Fondo mutuo' },
   { href: '/previsiones', label: 'Previsiones' },
-  { href: '/extracto', label: 'Extracto' },
-  { href: '/configuracion/metodos-pago', label: 'Métodos de pago' },
-  { href: '/configuracion/categorias', label: 'Categorías' },
-  { href: '/configuracion/telegram', label: 'Telegram' },
+  { href: '/movimientos', label: 'Movimientos' },
+  { href: '/configuracion', label: 'Configuración' },
 ];
 
 export default async function Sidebar() {

@@ -141,12 +141,14 @@ export async function cambiarEstadoIngreso(formData: FormData) {
 
 // ------------------------------ Generación mensual ------------------------------
 
-export async function generarMovimientosDelMes() {
-  const accountId = await getCurrentAccountId();
-  if (!accountId) return;
-
+/**
+ * Crea los movimientos del período que todavía no existen, a partir de las
+ * plantillas activas. No duplica lo que ya existe. Sin revalidatePath —
+ * pensado para poder llamarse tanto desde el botón manual como
+ * automáticamente al renderizar /mes-actual (ver comentario ahí).
+ */
+export async function generarMovimientosParaPeriodo(accountId: string, periodo: string) {
   const supabase = createSupabaseServerClient();
-  const periodo = toISODate(getInicioPeriodoActual());
 
   const [{ data: plantillasGasto }, { data: existentesGasto }] = await Promise.all([
     supabase.from('expense_templates').select('*').eq('account_id', accountId).eq('activo', true),
@@ -198,6 +200,17 @@ export async function generarMovimientosDelMes() {
     }));
   if (nuevosIngresos.length) await supabase.from('income_entries').insert(nuevosIngresos);
 
+  return { gastosCreados: nuevosGastos.length, ingresosCreados: nuevosIngresos.length };
+}
+
+/** Botón manual: mismo efecto, pero revalida la página (para cuando aparecen
+ * plantillas nuevas después de que el mes ya se generó). */
+export async function generarMovimientosDelMes() {
+  const accountId = await getCurrentAccountId();
+  if (!accountId) return;
+
+  const periodo = toISODate(getInicioPeriodoActual());
+  await generarMovimientosParaPeriodo(accountId, periodo);
   revalidatePath('/mes-actual');
 }
 

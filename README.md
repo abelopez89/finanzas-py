@@ -38,6 +38,13 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 
 **Nota de diseño**: a diferencia del Excel anterior, las plantillas de este sistema no tienen banderas mes a mes (como las columnas Ene–Dic para "Cuota Rafa"/"Cuota Benja" aplicando solo Feb–Nov). Por ahora todas las plantillas activas se proyectan como recurrentes en todos los períodos. Si hace falta ese nivel de detalle estacional, se puede agregar como mejora — avisame si lo querés para la próxima etapa.
 
+**Ajustes post-Etapa 4:**
+- **Menú simplificado**: Métodos de pago, Categorías y Telegram ahora viven bajo un solo ítem "Configuración" (`/configuracion`, con pestañas internas). El sidebar bajó de 10 a 8 ítems.
+- **Auto-generación en Mes Actual**: al entrar a `/mes-actual`, si el período vigente todavía no tiene movimientos generados desde las plantillas, se crean solos (mismo mecanismo idempotente que el botón manual, que sigue disponible por si se agrega una plantilla nueva después).
+- **Filtros y totales en Mes Actual y Extras**: ambas pantallas ahora tienen filtro por nombre, estado y rango de fechas/días, con el total filtrado mostrado arriba de cada tabla.
+- **Gráfico de categorías en el Dashboard**: torta con la distribución de gastos del período vigente por categoría.
+- **Extracto renombrado a Movimientos** (`/movimientos`): vista unificada de TODOS los gastos e ingresos de la cuenta (regulares y extra), con filtros por nombre/tipo/origen/estado/fecha, totales, y descarga en **Excel** (antes era CSV) reflejando los mismos filtros aplicados.
+
 **Próximas etapas:**
 5. Lógica completa de notificaciones diarias por Telegram
 

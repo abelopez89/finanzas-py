@@ -9,6 +9,7 @@ import {
   formatPeriodoLabel,
 } from '@/lib/period';
 import BarChartIngresosEgresos from '@/components/BarChartIngresosEgresos';
+import PieChartCategorias from '@/components/PieChartCategorias';
 
 function periodoKeyFor(fechaStr: string): string {
   return toISODate(getInicioPeriodoActual(new Date(`${fechaStr}T00:00:00Z`)));
@@ -34,7 +35,7 @@ export default async function DashboardPage() {
   const periodoActual = getInicioPeriodoActual();
   const periodoActualISO = toISODate(periodoActual);
 
-  const [{ data: movimientos }, { data: pendientes }] = await Promise.all([
+  const [{ data: movimientos }, { data: pendientes }, { data: gastosPeriodoConCategoria }] = await Promise.all([
     supabase.from('fund_movements').select('*').eq('account_id', accountId).order('fecha'),
     supabase
       .from('expense_entries')
@@ -43,6 +44,11 @@ export default async function DashboardPage() {
       .eq('periodo', periodoActualISO)
       .neq('estado', 'pagado')
       .order('dia'),
+    supabase
+      .from('expense_entries')
+      .select('monto, category_id, categories(nombre)')
+      .eq('account_id', accountId)
+      .eq('periodo', periodoActualISO),
   ]);
 
   const saldoActual = calcularSaldoFondo(movimientos ?? []);
@@ -63,6 +69,19 @@ export default async function DashboardPage() {
     const b = buckets.get(key) ?? { ingresos: 0, egresos: 0 };
     return { periodo: formatPeriodoCorto(p), ingresos: b.ingresos, egresos: b.egresos };
   });
+
+  // Distribución de gastos del período vigente por categoría
+  const categoriaBuckets = new Map<string, number>();
+  for (const g of gastosPeriodoConCategoria ?? []) {
+    const nombreCategoria = (g as any).categories?.nombre ?? 'Sin categoría';
+    categoriaBuckets.set(
+      nombreCategoria,
+      (categoriaBuckets.get(nombreCategoria) ?? 0) + Number(g.monto)
+    );
+  }
+  const categoriaChartData = Array.from(categoriaBuckets.entries())
+    .map(([categoria, monto]) => ({ categoria, monto }))
+    .sort((a, b) => b.monto - a.monto);
 
   return (
     <div className="space-y-8">
@@ -95,6 +114,19 @@ export default async function DashboardPage() {
         <h2 className="mb-3 text-lg font-medium">Ingresos vs. egresos — últimos 6 períodos</h2>
         <div className="rounded-md border border-gray-200 bg-white p-4">
           <BarChartIngresosEgresos data={chartData} />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-medium">Gastos del período por categoría</h2>
+        <div className="rounded-md border border-gray-200 bg-white p-4">
+          {categoriaChartData.length > 0 ? (
+            <PieChartCategorias data={categoriaChartData} />
+          ) : (
+            <p className="py-8 text-center text-sm text-gray-400">
+              Todavía no hay gastos categorizados en este período.
+            </p>
+          )}
         </div>
       </section>
 

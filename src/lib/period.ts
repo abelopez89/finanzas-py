@@ -66,3 +66,17 @@ export function getPeriodosSiguientes(n: number, desde: Date = new Date()): Date
   }
   return periodos;
 }
+
+/**
+ * Reconstruye la fecha calendario real de un movimiento regular a partir de
+ * su período (inicio del ciclo, día 27) y su día (1-31). Los días 27-31
+ * pertenecen al mes del inicio del período; los días 1-26 pertenecen al mes
+ * siguiente.
+ */
+export function fechaDeEntry(periodoISO: string, dia: number): Date {
+  const inicio = new Date(`${periodoISO}T00:00:00Z`);
+  if (dia >= 27) {
+    return new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), dia));
+  }
+  return new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, dia));
+}

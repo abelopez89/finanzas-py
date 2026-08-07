@@ -3,6 +3,7 @@ import { getCurrentAccountId } from '@/lib/supabase/account';
 import { getInicioPeriodoActual, formatPeriodoLabel, toISODate } from '@/lib/period';
 import {
   generarMovimientosDelMes,
+  generarMovimientosParaPeriodo,
   updateExpenseEntry,
   updateIncomeEntry,
   cambiarEstadoGasto,
@@ -17,30 +18,76 @@ const ESTADO_STYLES: Record<string, string> = {
   confirmado: 'bg-brand-100 text-brand-700',
 };
 
-export default async function MesActualPage() {
+type Filtros = {
+  q?: string;
+  estado?: string;
+  dia_desde?: string;
+  dia_hasta?: string;
+};
+
+export default async function MesActualPage({ searchParams }: { searchParams: Filtros }) {
   const accountId = await getCurrentAccountId();
   const supabase = createSupabaseServerClient();
   const inicio = getInicioPeriodoActual();
   const periodo = toISODate(inicio);
 
-  const [{ data: gastos }, { data: ingresos }] = accountId
-    ? await Promise.all([
-        supabase
-          .from('expense_entries')
-          .select('*')
-          .eq('account_id', accountId)
-          .eq('periodo', periodo)
-          .eq('es_extra', false)
-          .order('dia'),
-        supabase
-          .from('income_entries')
-          .select('*')
-          .eq('account_id', accountId)
-          .eq('periodo', periodo)
-          .eq('es_extra', false)
-          .order('dia'),
-      ])
-    : [{ data: [] as any[] }, { data: [] as any[] }];
+  // Auto-generación: si es la primera vez que se entra a un período nuevo,
+  // los movimientos de las plantillas activas se crean solos. El botón de
+  // abajo sigue disponible por si aparecen plantillas nuevas más tarde.
+  if (accountId) {
+    await generarMovimientosParaPeriodo(accountId, periodo);
+  }
+
+  const diaDesde = searchParams.dia_desde ? Number(searchParams.dia_desde) : null;
+  const diaHasta = searchParams.dia_hasta ? Number(searchParams.dia_hasta) : null;
+
+  let gastosQuery = accountId
+    ? supabase
+        .from('expense_entries')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('periodo', periodo)
+        .eq('es_extra', false)
+    : null;
+  let ingresosQuery = accountId
+    ? supabase
+        .from('income_entries')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('periodo', periodo)
+        .eq('es_extra', false)
+    : null;
+
+  if (gastosQuery && ingresosQuery) {
+    if (searchParams.q) {
+      gastosQuery = gastosQuery.ilike('nombre', `%${searchParams.q}%`);
+      ingresosQuery = ingresosQuery.ilike('nombre', `%${searchParams.q}%`);
+    }
+    if (searchParams.estado) {
+      gastosQuery = gastosQuery.eq('estado', searchParams.estado);
+      ingresosQuery = ingresosQuery.eq('estado', searchParams.estado);
+    }
+    if (diaDesde !== null) {
+      gastosQuery = gastosQuery.gte('dia', diaDesde);
+      ingresosQuery = ingresosQuery.gte('dia', diaDesde);
+    }
+    if (diaHasta !== null) {
+      gastosQuery = gastosQuery.lte('dia', diaHasta);
+      ingresosQuery = ingresosQuery.lte('dia', diaHasta);
+    }
+  }
+
+  const [{ data: gastos }, { data: ingresos }] =
+    gastosQuery && ingresosQuery
+      ? await Promise.all([gastosQuery.order('dia'), ingresosQuery.order('dia')])
+      : [{ data: [] as any[] }, { data: [] as any[] }];
+
+  const totalGastos = (gastos ?? []).reduce((a, g) => a + Number(g.monto), 0);
+  const totalIngresos = (ingresos ?? []).reduce((a, i) => a + Number(i.monto), 0);
+
+  const hayFiltros = Boolean(
+    searchParams.q || searchParams.estado || searchParams.dia_desde || searchParams.dia_hasta
+  );
 
   return (
     <div className="space-y-10">
@@ -56,13 +103,76 @@ export default async function MesActualPage() {
           Generar movimientos del mes desde las plantillas
         </button>
         <p className="mt-1 text-xs text-gray-400">
-          Solo crea los que todavía no existen para este período — no duplica ni pisa lo que ya ajustaste.
+          Los movimientos ya se generan solos al entrar por primera vez a un período nuevo. Usá este
+          botón si agregaste una plantilla nueva después.
         </p>
+      </form>
+
+      {/* ------------------------- Filtros ------------------------- */}
+      <form method="GET" className="flex flex-wrap items-end gap-3 rounded-md border border-gray-200 bg-white p-4">
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Nombre</label>
+          <input
+            name="q"
+            defaultValue={searchParams.q ?? ''}
+            placeholder="Buscar..."
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Estado</label>
+          <select
+            name="estado"
+            defaultValue={searchParams.estado ?? ''}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="">Todos</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="rescatado">Rescatado</option>
+            <option value="pagado">Pagado</option>
+            <option value="confirmado">Confirmado</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Día desde</label>
+          <input
+            name="dia_desde"
+            type="number"
+            min={1}
+            max={31}
+            defaultValue={searchParams.dia_desde ?? ''}
+            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">Día hasta</label>
+          <input
+            name="dia_hasta"
+            type="number"
+            min={1}
+            max={31}
+            defaultValue={searchParams.dia_hasta ?? ''}
+            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
+          Filtrar
+        </button>
+        {hayFiltros && (
+          <a href="/mes-actual" className="text-sm text-gray-400 hover:underline">
+            Limpiar filtros
+          </a>
+        )}
       </form>
 
       {/* ------------------------- Gastos del período ------------------------- */}
       <section>
-        <h2 className="mb-3 text-lg font-medium">Gastos</h2>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-lg font-medium">Gastos</h2>
+          <p className="text-sm text-gray-500">
+            Total filtrado: <strong className="text-gray-800">₲ {totalGastos.toLocaleString('es-PY')}</strong>
+          </p>
+        </div>
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
@@ -143,7 +253,7 @@ export default async function MesActualPage() {
               {(gastos ?? []).length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    Todavía no hay gastos generados para este período.
+                    No hay gastos que coincidan con los filtros.
                   </td>
                 </tr>
               )}
@@ -154,7 +264,13 @@ export default async function MesActualPage() {
 
       {/* ------------------------- Ingresos del período ------------------------- */}
       <section>
-        <h2 className="mb-3 text-lg font-medium">Ingresos</h2>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-lg font-medium">Ingresos</h2>
+          <p className="text-sm text-gray-500">
+            Total filtrado:{' '}
+            <strong className="text-gray-800">₲ {totalIngresos.toLocaleString('es-PY')}</strong>
+          </p>
+        </div>
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
@@ -227,7 +343,7 @@ export default async function MesActualPage() {
               {(ingresos ?? []).length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    Todavía no hay ingresos generados para este período.
+                    No hay ingresos que coincidan con los filtros.
                   </td>
                 </tr>
               )}

@@ -44,7 +44,6 @@ export default async function TelegramPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-semibold">Notificaciones Telegram</h1>
       <p className="mb-4 text-sm text-gray-500">
         El bot ya existente se reutiliza (token en variable de entorno del
         servidor). Acá solo se configura a quién avisarle: cada persona debe

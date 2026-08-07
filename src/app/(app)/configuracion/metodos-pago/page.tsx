@@ -47,8 +47,6 @@ export default async function MetodosPagoPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold">Métodos de pago</h1>
-
       {error && (
         <p className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           Error al leer métodos de pago: {error.message}. Revisá que el esquema{' '}
