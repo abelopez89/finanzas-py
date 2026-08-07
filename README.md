@@ -22,9 +22,15 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 - Estados de ingreso: pendiente → confirmado (con reversa)
 - Al marcar un gasto como "pagado" o un ingreso como "confirmado", se genera automáticamente el movimiento correspondiente en el libro mayor del fondo (`fund_movements`); si se revierte el estado, el movimiento se elimina para mantener el saldo consistente
 - **Fix de autenticación**: se agregó `middleware.ts`, que obliga a iniciar sesión para cualquier página que no sea `/login`, y redirige al dashboard si ya estás logueado y entrás a `/login`. También se agregó el botón de "Cerrar sesión" (con el email de la cuenta activa) en el sidebar, y se separó el layout para que `/login` no muestre el menú lateral.
+- **Fix de creación de cuenta**: la primera cuenta familiar y el vínculo de correos adicionales ahora se crean con funciones de base de datos `SECURITY DEFINER` (`create_account_for_user`, `link_email_to_my_account`) en vez de inserts directos, evitando un problema de RLS+RETURNING en la primera fila de un usuario nuevo.
+
+**Etapa 3 — completada:** extras y control de saldo del fondo.
+- `/extras`: alta de gastos e ingresos puntuales (con fecha de vencimiento/aplicación, no plantilla), mismos estados y misma lógica de libro mayor que los movimientos regulares
+- `/fondo`: carga única de saldo inicial; registro del saldo real informado por el usuario con cálculo automático del interés generado (diferencia contra el saldo calculado por el sistema); historial de chequeos de saldo; libro mayor de los últimos movimientos del fondo
+- Las acciones de edición/estado de movimientos (`updateExpenseEntry`, `cambiarEstadoGasto`, etc.) se centralizaron en `src/lib/actions/entries.ts`, compartidas entre `/mes-actual` y `/extras`
+- Fix de alineación de columnas en la tabla de plantillas de gastos (se pasó de una tabla HTML con `colSpan` a un grid CSS por fila)
 
 **Próximas etapas:**
-3. Extras, carga de saldo del fondo y cálculo automático de interés
 4. Dashboard con gráficos, previsiones a 12 meses, extracto descargable
 5. Lógica completa de notificaciones diarias por Telegram
 
