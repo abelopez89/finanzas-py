@@ -31,6 +31,8 @@ export default async function PrevisionesPage() {
     { data: ingresosPendientesActual },
     { data: gastoTemplates },
     { data: ingresoTemplates },
+    { data: extrasGastoFuturos },
+    { data: extrasIngresoFuturos },
   ] = await Promise.all([
     supabase.from('fund_movements').select('tipo, monto').eq('account_id', accountId),
     supabase
@@ -47,6 +49,20 @@ export default async function PrevisionesPage() {
       .eq('estado', 'pendiente'),
     supabase.from('expense_templates').select('monto').eq('account_id', accountId).eq('activo', true),
     supabase.from('income_templates').select('monto').eq('account_id', accountId).eq('activo', true),
+    supabase
+      .from('expense_entries')
+      .select('monto, periodo')
+      .eq('account_id', accountId)
+      .eq('es_extra', true)
+      .eq('estado', 'pendiente')
+      .gt('periodo', periodoActualISO),
+    supabase
+      .from('income_entries')
+      .select('monto, periodo')
+      .eq('account_id', accountId)
+      .eq('es_extra', true)
+      .eq('estado', 'pendiente')
+      .gt('periodo', periodoActualISO),
   ]);
 
   const saldoActual = calcularSaldoFondo(movimientos ?? []);
@@ -55,31 +71,58 @@ export default async function PrevisionesPage() {
   const totalGastosTemplate = (gastoTemplates ?? []).reduce((a, t) => a + Number(t.monto), 0);
   const totalIngresosTemplate = (ingresoTemplates ?? []).reduce((a, t) => a + Number(t.monto), 0);
 
+  // Extras futuros pendientes, agrupados por período (gracias a que el
+  // período de un extra se calcula en base a su fecha real, no a la fecha
+  // en que se cargó).
+  const extraGastoPorPeriodo = new Map<string, number>();
+  for (const e of extrasGastoFuturos ?? []) {
+    extraGastoPorPeriodo.set(e.periodo, (extraGastoPorPeriodo.get(e.periodo) ?? 0) + Number(e.monto));
+  }
+  const extraIngresoPorPeriodo = new Map<string, number>();
+  for (const e of extrasIngresoFuturos ?? []) {
+    extraIngresoPorPeriodo.set(e.periodo, (extraIngresoPorPeriodo.get(e.periodo) ?? 0) + Number(e.monto));
+  }
+
   // Saldo al cierre del período vigente: lo ya confirmado, menos lo que
   // todavía está pendiente de rescatar/pagar, más lo que falta confirmar de ingresos.
   const saldoFinPeriodoActual = saldoActual - gastosPendientes + ingresosPendientes;
 
   const periodosFuturos = getPeriodosSiguientes(11);
 
-  const filas = [
+  const filas: {
+    periodo: Date;
+    label: string;
+    ingresos: number;
+    gastos: number;
+    saldo: number;
+    tieneExtra: boolean;
+  }[] = [
     {
       periodo: periodoActual,
       label: 'Actual',
       ingresos: ingresosPendientes,
       gastos: gastosPendientes,
       saldo: saldoFinPeriodoActual,
+      tieneExtra: false,
     },
   ];
 
   let saldoAcumulado = saldoFinPeriodoActual;
   for (const p of periodosFuturos) {
-    saldoAcumulado = saldoAcumulado + totalIngresosTemplate - totalGastosTemplate;
+    const key = toISODate(p);
+    const extraGastos = extraGastoPorPeriodo.get(key) ?? 0;
+    const extraIngresos = extraIngresoPorPeriodo.get(key) ?? 0;
+    const ingresosPeriodo = totalIngresosTemplate + extraIngresos;
+    const gastosPeriodo = totalGastosTemplate + extraGastos;
+
+    saldoAcumulado = saldoAcumulado + ingresosPeriodo - gastosPeriodo;
     filas.push({
       periodo: p,
       label: formatPeriodoCorto(p),
-      ingresos: totalIngresosTemplate,
-      gastos: totalGastosTemplate,
+      ingresos: ingresosPeriodo,
+      gastos: gastosPeriodo,
       saldo: saldoAcumulado,
+      tieneExtra: extraGastos > 0 || extraIngresos > 0,
     });
   }
 
@@ -91,10 +134,16 @@ export default async function PrevisionesPage() {
       <div>
         <h1 className="mb-1 text-2xl font-semibold">Previsiones a 12 meses</h1>
         <p className="text-sm text-gray-500">
-          Proyección del saldo del fondo asumiendo que las plantillas activas se repiten cada período.
-          Los extras no se proyectan porque no son recurrentes por definición.
+          Proyección del saldo del fondo asumiendo que las plantillas activas se repiten cada período,
+          más cualquier gasto o ingreso extra que hayas cargado con una fecha futura.
         </p>
       </div>
+
+      <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
+        💡 Para que un gasto o ingreso puntual afecte una previsión futura (por ejemplo, un viaje
+        dentro de 4 meses), cargalo en <strong>Extras</strong> con la fecha correspondiente — se va a
+        sumar automáticamente al período que le toca.
+      </p>
 
       {primerNegativo && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -127,6 +176,14 @@ export default async function PrevisionesPage() {
                 <tr key={idx} className={f.saldo < 0 ? 'bg-red-50' : ''}>
                   <td className="px-4 py-2">
                     {idx === 0 ? 'Actual' : formatPeriodoCorto(f.periodo)}
+                    {f.tieneExtra && (
+                      <span
+                        title="Este período incluye un extra cargado con fecha futura"
+                        className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700"
+                      >
+                        + extra
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-brand-700">
                     +₲ {f.ingresos.toLocaleString('es-PY')}

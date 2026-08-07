@@ -45,6 +45,10 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 - **Gráfico de categorías en el Dashboard**: torta con la distribución de gastos del período vigente por categoría.
 - **Extracto renombrado a Movimientos** (`/movimientos`): vista unificada de TODOS los gastos e ingresos de la cuenta (regulares y extra), con filtros por nombre/tipo/origen/estado/fecha, totales, y descarga en **Excel** (antes era CSV) reflejando los mismos filtros aplicados.
 
+**Ajustes adicionales:**
+- **Movimientos ahora muestra solo confirmados**: gastos pagados e ingresos confirmados únicamente (antes mostraba todo, incluyendo pendientes). Se sacó el filtro de "Estado" de la pantalla porque ya no aporta (todo lo que aparece está confirmado por definición).
+- **Previsiones ahora suma extras futuros**: si cargás un gasto o ingreso extra en `/extras` con una fecha futura, se va a sumar automáticamente al período que le corresponde en la proyección de 12 meses (se marca con una etiqueta "+ extra" en la tabla). Esto requirió corregir un bug: el campo `periodo` de un extra se calculaba con la fecha de HOY en vez de con la fecha de vencimiento/aplicación elegida, por lo que un extra futuro terminaba mal ubicado.
+
 **Próximas etapas:**
 5. Lógica completa de notificaciones diarias por Telegram
 

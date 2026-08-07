@@ -232,7 +232,11 @@ export async function addExpenseExtra(formData: FormData) {
     account_id: accountId,
     es_extra: true,
     nombre,
-    periodo: toISODate(getInicioPeriodoActual()),
+    // El período se calcula a partir de la fecha de vencimiento elegida
+    // (no la fecha de hoy), así un extra cargado para dentro de 3 meses
+    // queda ubicado en el período que le corresponde — esto es lo que
+    // permite que aparezca en la previsión del período futuro correcto.
+    periodo: toISODate(getInicioPeriodoActual(new Date(`${fecha_vencimiento}T00:00:00Z`))),
     dia: diaDeFecha(fecha_vencimiento),
     monto,
     payment_method_id,
@@ -241,6 +245,7 @@ export async function addExpenseExtra(formData: FormData) {
     estado: 'pendiente',
   });
   revalidatePath('/extras');
+  revalidatePath('/previsiones');
 }
 
 export async function addIncomeExtra(formData: FormData) {
@@ -257,13 +262,14 @@ export async function addIncomeExtra(formData: FormData) {
     account_id: accountId,
     es_extra: true,
     nombre,
-    periodo: toISODate(getInicioPeriodoActual()),
+    periodo: toISODate(getInicioPeriodoActual(new Date(`${fecha_aplicacion}T00:00:00Z`))),
     dia: diaDeFecha(fecha_aplicacion),
     monto,
     fecha_aplicacion,
     estado: 'pendiente',
   });
   revalidatePath('/extras');
+  revalidatePath('/previsiones');
 }
 
 export async function deleteExpenseExtra(formData: FormData) {

@@ -21,10 +21,10 @@ export type FiltrosMovimientos = {
 };
 
 /**
- * Trae y unifica TODOS los movimientos de la cuenta (gastos e ingresos,
- * regulares y extra) en una sola lista con fecha real, y aplica los
- * filtros en memoria. Pensado para una cantidad de datos modesta (uso
- * familiar), no para volúmenes grandes.
+ * Trae y unifica los movimientos CONFIRMADOS de la cuenta (gastos pagados,
+ * ingresos confirmados — regulares y extra) en una sola lista con fecha
+ * real, y aplica los filtros en memoria. Pensado para una cantidad de datos
+ * modesta (uso familiar), no para volúmenes grandes.
  */
 export async function getMovimientosUnificados(
   accountId: string,
@@ -33,8 +33,8 @@ export async function getMovimientosUnificados(
   const supabase = createSupabaseServerClient();
 
   const [{ data: gastos }, { data: ingresos }] = await Promise.all([
-    supabase.from('expense_entries').select('*').eq('account_id', accountId),
-    supabase.from('income_entries').select('*').eq('account_id', accountId),
+    supabase.from('expense_entries').select('*').eq('account_id', accountId).eq('estado', 'pagado'),
+    supabase.from('income_entries').select('*').eq('account_id', accountId).eq('estado', 'confirmado'),
   ]);
 
   const movimientos: MovimientoUnificado[] = [];

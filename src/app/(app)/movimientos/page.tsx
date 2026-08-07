@@ -35,7 +35,8 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
       <div>
         <h1 className="mb-1 text-2xl font-semibold">Movimientos</h1>
         <p className="text-sm text-gray-500">
-          Todos los gastos e ingresos de la cuenta — regulares y extra — en un solo lugar.
+          Movimientos confirmados de la cuenta — gastos pagados e ingresos confirmados, regulares y
+          extra — en un solo lugar.
         </p>
       </div>
 
@@ -71,20 +72,6 @@ export default async function MovimientosPage({ searchParams }: { searchParams: 
             <option value="">Todos</option>
             <option value="Regular">Regular</option>
             <option value="Extra">Extra</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">Estado</label>
-          <select
-            name="estado"
-            defaultValue={searchParams.estado ?? ''}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="">Todos</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="rescatado">Rescatado</option>
-            <option value="pagado">Pagado</option>
-            <option value="confirmado">Confirmado</option>
           </select>
         </div>
         <div>
