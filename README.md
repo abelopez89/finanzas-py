@@ -21,6 +21,7 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 - Estados de gasto: pendiente → rescatado → pagado (con reversa)
 - Estados de ingreso: pendiente → confirmado (con reversa)
 - Al marcar un gasto como "pagado" o un ingreso como "confirmado", se genera automáticamente el movimiento correspondiente en el libro mayor del fondo (`fund_movements`); si se revierte el estado, el movimiento se elimina para mantener el saldo consistente
+- **Fix de autenticación**: se agregó `middleware.ts`, que obliga a iniciar sesión para cualquier página que no sea `/login`, y redirige al dashboard si ya estás logueado y entrás a `/login`. También se agregó el botón de "Cerrar sesión" (con el email de la cuenta activa) en el sidebar, y se separó el layout para que `/login` no muestre el menú lateral.
 
 **Próximas etapas:**
 3. Extras, carga de saldo del fondo y cálculo automático de interés
