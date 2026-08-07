@@ -19,16 +19,7 @@ export async function GET(request: NextRequest) {
         const userId = data.user.id;
 
         if (isLinking) {
-          const { data: existing } = await supabase
-            .from('account_users')
-            .select('account_id')
-            .eq('auth_user_id', userId)
-            .limit(1)
-            .maybeSingle();
-
-          if (existing) {
-            await linkAdditionalEmail(supabase, existing.account_id, userId, email);
-          }
+          await linkAdditionalEmail(supabase, userId, email);
         } else {
           await ensureAccountForUser(supabase, userId, email);
         }

@@ -1,63 +1,42 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Se ejecuta después de un login exitoso.
- * Si el usuario autenticado (por su auth_user_id) todavía no pertenece
- * a ninguna cuenta familiar, crea una nueva. Si ya pertenece, no hace nada.
- * Esto es lo que permite que, más adelante, un segundo correo se vincule
- * a la MISMA cuenta usando linkIdentity() en vez de crear una cuenta nueva.
+ * Se ejecuta después de un login exitoso. Crea la cuenta familiar del
+ * usuario si todavía no tiene una (o devuelve la existente).
+ *
+ * Usa una función de base de datos (SECURITY DEFINER) en vez de inserts
+ * directos: al insertar la primera fila de un usuario nuevo con
+ * `.select().single()`, Postgres exige que esa fila también cumpla la
+ * política de SELECT antes de poder devolverla — pero en el primer login
+ * todavía no existe nada que la satisfaga (problema de huevo y gallina).
+ * La función de base de datos evita ese problema por completo.
  */
 export async function ensureAccountForUser(
   supabase: SupabaseClient,
   userId: string,
   email: string
 ) {
-  const { data: existing } = await supabase
-    .from('account_users')
-    .select('account_id')
-    .eq('auth_user_id', userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (existing) return existing.account_id;
-
-  const { data: account, error: accountError } = await supabase
-    .from('accounts')
-    .insert({ nombre: 'Familia' })
-    .select('id')
-    .single();
-
-  if (accountError || !account) {
-    throw accountError ?? new Error('No se pudo crear la cuenta familiar');
-  }
-
-  const { error: linkError } = await supabase.from('account_users').insert({
-    account_id: account.id,
-    auth_user_id: userId,
-    email,
-    is_owner: true,
+  const { data, error } = await supabase.rpc('create_account_for_user', {
+    p_email: email,
   });
 
-  if (linkError) throw linkError;
-
-  return account.id;
+  if (error) throw error;
+  return data as string;
 }
 
 /**
- * Vincula un correo Gmail ADICIONAL a la cuenta familiar existente.
- * Se usa después de supabase.auth.linkIdentity() para que el segundo
- * correo quede asociado a la misma cuenta (mismo fondo mutuo).
+ * Vincula un correo Gmail ADICIONAL a la cuenta familiar existente del
+ * usuario autenticado (mismo mecanismo, misma razón).
  */
 export async function linkAdditionalEmail(
   supabase: SupabaseClient,
-  accountId: string,
   userId: string,
   email: string,
   nombre?: string
 ) {
-  const { error } = await supabase.from('account_users').upsert(
-    { account_id: accountId, auth_user_id: userId, email, nombre },
-    { onConflict: 'account_id,email' }
-  );
+  const { error } = await supabase.rpc('link_email_to_my_account', {
+    p_email: email,
+    p_nombre: nombre ?? null,
+  });
   if (error) throw error;
 }

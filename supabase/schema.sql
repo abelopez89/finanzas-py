@@ -263,6 +263,70 @@ create policy "crud fund_movements" on finanzas_py.fund_movements
   with check (account_id in (select finanzas_py.auth_account_ids()));
 
 -- -----------------------------------------------------------------
+-- Bootstrap de cuenta: funciones SECURITY DEFINER para crear la cuenta
+-- familiar y vincular correos adicionales, evitando el problema de
+-- RLS+RETURNING en la primera fila de un usuario nuevo (ver comentario
+-- en src/lib/supabase/onboarding.ts).
+-- -----------------------------------------------------------------
+create or replace function finanzas_py.create_account_for_user(p_email text, p_nombre text default 'Familia')
+returns uuid
+language plpgsql
+security definer
+set search_path = finanzas_py, public
+as $$
+declare
+  v_account_id uuid;
+begin
+  select account_id into v_account_id
+  from finanzas_py.account_users
+  where auth_user_id = auth.uid()
+  limit 1;
+
+  if v_account_id is not null then
+    return v_account_id;
+  end if;
+
+  insert into finanzas_py.accounts (nombre) values (p_nombre)
+  returning id into v_account_id;
+
+  insert into finanzas_py.account_users (account_id, auth_user_id, email, is_owner)
+  values (v_account_id, auth.uid(), p_email, true);
+
+  return v_account_id;
+end;
+$$;
+
+grant execute on function finanzas_py.create_account_for_user(text, text) to authenticated;
+
+create or replace function finanzas_py.link_email_to_my_account(p_email text, p_nombre text default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = finanzas_py, public
+as $$
+declare
+  v_account_id uuid;
+begin
+  select account_id into v_account_id
+  from finanzas_py.account_users
+  where auth_user_id = auth.uid()
+  limit 1;
+
+  if v_account_id is null then
+    raise exception 'No se encontró una cuenta para vincular este correo';
+  end if;
+
+  insert into finanzas_py.account_users (account_id, auth_user_id, email, nombre)
+  values (v_account_id, auth.uid(), p_email, p_nombre)
+  on conflict (account_id, email) do update set nombre = excluded.nombre;
+
+  return v_account_id;
+end;
+$$;
+
+grant execute on function finanzas_py.link_email_to_my_account(text, text) to authenticated;
+
+-- -----------------------------------------------------------------
 -- IMPORTANTE: exponer el esquema en la API de Supabase
 -- Dashboard > Project Settings > API > Exposed schemas
 -- Agregar "finanzas_py" a la lista (junto a "public", sin sacarlo).
