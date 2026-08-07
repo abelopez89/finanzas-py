@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
-import { getInicioPeriodoActual, formatPeriodoLabel, toISODate } from '@/lib/period';
+import { getInicioPeriodoActual, formatPeriodoLabel, toISODate, ordenDiaPeriodo } from '@/lib/period';
 import {
   generarMovimientosDelMes,
   generarMovimientosParaPeriodo,
@@ -46,7 +46,7 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
   let gastosQuery = accountId
     ? supabase
         .from('expense_entries')
-        .select('*')
+        .select('*, payment_methods(nombre)')
         .eq('account_id', accountId)
         .eq('periodo', periodo)
         .eq('es_extra', false)
@@ -79,10 +79,26 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     }
   }
 
-  const [{ data: gastos }, { data: ingresos }] =
+  const [{ data: gastosRaw }, { data: ingresosRaw }] =
     gastosQuery && ingresosQuery
-      ? await Promise.all([gastosQuery.order('dia'), ingresosQuery.order('dia')])
+      ? await Promise.all([gastosQuery, ingresosQuery])
       : [{ data: [] as any[] }, { data: [] as any[] }];
+
+  // Orden: día del período (27→26), después método de pago, después nombre.
+  const gastos = [...(gastosRaw ?? [])].sort((a, b) => {
+    const porDia = ordenDiaPeriodo(a.dia) - ordenDiaPeriodo(b.dia);
+    if (porDia !== 0) return porDia;
+    const metodoA = (a as any).payment_methods?.nombre ?? '';
+    const metodoB = (b as any).payment_methods?.nombre ?? '';
+    const porMetodo = metodoA.localeCompare(metodoB, 'es');
+    if (porMetodo !== 0) return porMetodo;
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
+  const ingresos = [...(ingresosRaw ?? [])].sort((a, b) => {
+    const porDia = ordenDiaPeriodo(a.dia) - ordenDiaPeriodo(b.dia);
+    if (porDia !== 0) return porDia;
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
 
   const totalGastos = (gastos ?? []).reduce((a, g) => a + Number(g.monto), 0);
   const totalIngresos = (ingresos ?? []).reduce((a, i) => a + Number(i.monto), 0);

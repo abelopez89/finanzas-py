@@ -68,6 +68,14 @@ export function getPeriodosSiguientes(n: number, desde: Date = new Date()): Date
 }
 
 /**
+ * Convierte un "día" (1-31) en una clave de orden que respeta el ciclo de
+ * facturación 27→26: el día 27 es el primero del período, el 26 el último.
+ */
+export function ordenDiaPeriodo(dia: number): number {
+  return dia >= 27 ? dia - 27 : dia + 4;
+}
+
+/**
  * Reconstruye la fecha calendario real de un movimiento regular a partir de
  * su período (inicio del ciclo, día 27) y su día (1-31). Los días 27-31
  * pertenecen al mes del inicio del período; los días 1-26 pertenecen al mes
