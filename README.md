@@ -62,8 +62,14 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 - **Plantillas trasladado a Configuración**: ya no es un ítem del menú principal — ahora es la primera pestaña dentro de Configuración (`/configuracion/plantillas`).
 - **Menú final**: Dashboard, Mes actual, Extras, Fondo mutuo, Previsiones, Configuración (con pestañas: Plantillas, Métodos de pago, Categorías, Saldo inicial, Telegram).
 
-**Próximas etapas:**
-5. Lógica completa de notificaciones diarias por Telegram
+**Etapa 5 — completada:** notificaciones diarias por Telegram.
+- `src/lib/avisos.ts` arma el mensaje: gastos que vencen hoy, atrasados sin rescatar, total a rescatar antes del mediodía y saldo del fondo. Calcula la fecha real de cada gasto (los extras la tienen explícita; los regulares se derivan del período 27–26 y el día).
+- `GET /api/cron/notificar-vencimientos` recorre las cuentas con destinatarios activos y envía. Autenticación por `Authorization: Bearer <CRON_SECRET>` o `?token=<CRON_SECRET>`.
+- Si no hay vencimientos ni atrasados, **no manda nada**: un aviso diario que llega siempre se vuelve ruido que se ignora.
+- Un destinatario que falle (por ejemplo, alguien que bloqueó el bot) no corta el envío a los demás; el resultado detallado vuelve en la respuesta del endpoint.
+- Botón "Enviar aviso de prueba" en Configuración → Telegram, para verificar token y chat_id sin esperar al horario del cron.
+
+**Alcance original completo.** Todos los requisitos funcionales del pedido inicial están implementados.
 
 ## Puesta en marcha
 

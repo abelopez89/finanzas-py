@@ -1,71 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/server';
-import { sendTelegramMessage } from '@/lib/telegram';
+import { sendTelegramBroadcast } from '@/lib/telegram';
+import { construirAvisoDiario } from '@/lib/avisos';
+
+// Sin caché: cada llamada tiene que leer el estado real del día.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
- * Ruta invocada diariamente por cron-job.org.
- * Protegida con un secreto compartido (header Authorization) para que
- * nadie más pueda dispararla.
+ * Aviso diario de vencimientos por Telegram. La invoca cron-job.org.
  *
- * Configurar en cron-job.org:
- *   URL: https://<tu-dominio>.vercel.app/api/cron/notificar-vencimientos
- *   Header: Authorization: Bearer <CRON_SECRET>
- *   Horario: el que prefieras (ej. 8:00 AM diario)
+ * Configuración en cron-job.org:
+ *   URL:      https://<tu-dominio>.vercel.app/api/cron/notificar-vencimientos
+ *   Horario:  el que prefieras (ej. 8:00, con zona horaria America/Asuncion)
+ *   Auth:     header  Authorization: Bearer <CRON_SECRET>
+ *             o bien  ?token=<CRON_SECRET> en la URL, si te resulta más
+ *             cómodo que configurar headers.
  *
- * NOTA: esta ruta usa el cliente con service role porque corre sin sesión
- * de usuario (server-to-server), por eso NO respeta RLS por sí sola —
- * se filtra explícitamente por cada account_id en el loop.
+ * Usa el cliente con service role porque corre sin sesión de usuario, así
+ * que NO pasa por RLS: por eso filtra explícitamente por cada account_id.
  */
 export async function GET(request: NextRequest) {
+  const secreto = process.env.CRON_SECRET;
+  if (!secreto) {
+    return NextResponse.json(
+      { error: 'Falta CRON_SECRET en las variables de entorno' },
+      { status: 500 }
+    );
+  }
+
   const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const tokenQuery = request.nextUrl.searchParams.get('token');
+  const autorizado = authHeader === `Bearer ${secreto}` || tokenQuery === secreto;
+
+  if (!autorizado) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
   const supabase = createSupabaseServiceClient();
-  const hoy = new Date().toISOString().slice(0, 10);
 
-  // Gastos normales cuyo "dia" de aplicación cae hoy dentro del período vigente,
-  // y gastos extra cuya fecha_vencimiento es hoy. Ambos con estado != 'pagado'.
-  const { data: vencenHoy, error } = await supabase
-    .from('expense_entries')
-    .select('id, account_id, nombre, monto, estado, fecha_vencimiento, es_extra')
-    .neq('estado', 'pagado')
-    .or(`fecha_vencimiento.eq.${hoy}`); // Etapa 5 completará el matching de "dia" para gastos no-extra
+  // Cuentas que tienen al menos un destinatario activo
+  const { data: destinatarios, error: errorDest } = await supabase
+    .from('telegram_recipients')
+    .select('account_id, chat_id')
+    .eq('activo', true);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (errorDest) {
+    return NextResponse.json({ error: errorDest.message }, { status: 500 });
   }
 
-  const porCuenta = new Map<string, typeof vencenHoy>();
-  for (const gasto of vencenHoy ?? []) {
-    const lista = porCuenta.get(gasto.account_id) ?? [];
-    lista.push(gasto);
-    porCuenta.set(gasto.account_id, lista);
+  const porCuenta = new Map<string, string[]>();
+  for (const d of destinatarios ?? []) {
+    porCuenta.set(d.account_id, [...(porCuenta.get(d.account_id) ?? []), d.chat_id]);
   }
 
-  let notificacionesEnviadas = 0;
+  const resumen: Array<Record<string, unknown>> = [];
 
-  for (const [accountId, gastos] of porCuenta) {
-    const { data: destinatarios } = await supabase
-      .from('telegram_recipients')
-      .select('chat_id')
-      .eq('account_id', accountId)
-      .eq('activo', true);
+  for (const [accountId, chatIds] of porCuenta) {
+    try {
+      const mensaje = await construirAvisoDiario(supabase, accountId);
 
-    if (!destinatarios?.length || !gastos?.length) continue;
+      // Sin vencimientos ni atrasados: no se manda nada, para que el aviso
+      // diario no se vuelva ruido que se ignora.
+      if (!mensaje) {
+        resumen.push({ accountId, enviados: 0, omitido: 'sin vencimientos' });
+        continue;
+      }
 
-    const lineas = gastos
-      .map((g) => `• ${g.nombre}: ₲ ${Number(g.monto).toLocaleString('es-PY')}`)
-      .join('\n');
-
-    const mensaje = `<b>Gastos que vencen hoy</b>\n${lineas}`;
-
-    for (const dest of destinatarios) {
-      await sendTelegramMessage(dest.chat_id, mensaje);
-      notificacionesEnviadas++;
+      const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
+      resumen.push({ accountId, enviados, fallidos });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      console.error(`Error notificando cuenta ${accountId}:`, err);
+      resumen.push({ accountId, error: message });
     }
   }
 
-  return NextResponse.json({ ok: true, notificacionesEnviadas });
+  return NextResponse.json({
+    ok: true,
+    ejecutado: new Date().toISOString(),
+    cuentas: resumen.length,
+    resumen,
+  });
 }

@@ -34,10 +34,17 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
     ? supabase.from('income_entries').select('*').eq('account_id', accountId).eq('es_extra', true)
     : null;
 
+  const estado = searchParams.estado ?? '';
+
   if (gastosQuery && ingresosQuery) {
-    if (searchParams.estado) {
-      gastosQuery = gastosQuery.eq('estado', searchParams.estado);
-      ingresosQuery = ingresosQuery.eq('estado', searchParams.estado);
+    // Por defecto solo lo que queda por resolver. Lo pagado/confirmado se
+    // trae solo si se pide explícitamente.
+    if (estado === '') {
+      gastosQuery = gastosQuery.in('estado', ['pendiente', 'rescatado']);
+      ingresosQuery = ingresosQuery.eq('estado', 'pendiente');
+    } else if (estado !== 'todos') {
+      gastosQuery = gastosQuery.eq('estado', estado);
+      ingresosQuery = ingresosQuery.eq('estado', estado);
     }
     if (searchParams.desde) {
       gastosQuery = gastosQuery.gte('fecha_vencimiento', searchParams.desde);
@@ -93,12 +100,13 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
             <label className="label" htmlFor="estado">
               Estado
             </label>
-            <select id="estado" name="estado" defaultValue={searchParams.estado ?? ''} className="field">
-              <option value="">Todos</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="rescatado">Rescatado</option>
-              <option value="pagado">Pagado</option>
-              <option value="confirmado">Confirmado</option>
+            <select id="estado" name="estado" defaultValue={estado} className="field">
+              <option value="">Pendientes y rescatados</option>
+              <option value="todos">Todos</option>
+              <option value="pendiente">Solo pendientes</option>
+              <option value="rescatado">Solo rescatados</option>
+              <option value="pagado">Solo pagados</option>
+              <option value="confirmado">Solo confirmados</option>
             </select>
           </div>
           <div>

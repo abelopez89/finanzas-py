@@ -1,8 +1,10 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { revalidatePath } from 'next/cache';
-import { EmptyState } from '@/components/ui/Layout';
+import { EmptyState, Aviso } from '@/components/ui/Layout';
 import FormularioAlta from '@/components/ui/FormularioAlta';
+import { sendTelegramBroadcast } from '@/lib/telegram';
+import { construirAvisoDiario } from '@/lib/avisos';
 
 async function addRecipient(formData: FormData) {
   'use server';
@@ -32,6 +34,45 @@ async function toggleRecipient(formData: FormData) {
   revalidatePath('/configuracion/telegram');
 }
 
+/**
+ * Manda el aviso real (el mismo que enviaría el cron) a los destinatarios
+ * activos, forzándolo aunque hoy no haya vencimientos. Sirve para verificar
+ * que el token y los chat_id estén bien sin esperar al horario del cron.
+ */
+async function enviarPrueba() {
+  'use server';
+  const accountId = await getCurrentAccountId();
+  if (!accountId) throw new Error('No se encontró la cuenta del usuario');
+
+  const supabase = createSupabaseServerClient();
+  const { data: destinatarios } = await supabase
+    .from('telegram_recipients')
+    .select('chat_id')
+    .eq('account_id', accountId)
+    .eq('activo', true);
+
+  const chatIds = (destinatarios ?? []).map((d) => d.chat_id);
+  if (chatIds.length === 0) {
+    throw new Error('No hay destinatarios activos a quienes enviar la prueba.');
+  }
+
+  const mensaje =
+    (await construirAvisoDiario(supabase, accountId, { forzar: true })) ??
+    'Prueba de finanzas·py';
+
+  const { fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
+
+  if (fallidos.length > 0) {
+    throw new Error(
+      `No se pudo enviar a ${fallidos.length} destinatario(s): ${fallidos
+        .map((f) => `${f.chatId} (${f.error})`)
+        .join(', ')}`
+    );
+  }
+
+  revalidatePath('/configuracion/telegram');
+}
+
 export default async function TelegramPage() {
   const accountId = await getCurrentAccountId();
   const supabase = createSupabaseServerClient();
@@ -44,12 +85,15 @@ export default async function TelegramPage() {
         .order('created_at')
     : { data: [] };
 
+  const activos = (destinatarios ?? []).filter((d) => d.activo).length;
+
   return (
     <div>
       <p className="mb-5 text-sm text-ink-500">
         Quién recibe el aviso diario de vencimientos. Cada persona necesita su{' '}
         <span className="font-mono text-[13px]">chat_id</span>, que se obtiene escribiéndole a
-        @userinfobot en Telegram.
+        @userinfobot en Telegram. Ojo: cada destinatario tiene que haberle escrito al menos una vez
+        a tu bot, o Telegram no le deja enviar mensajes.
       </p>
 
       <FormularioAlta
@@ -61,7 +105,7 @@ export default async function TelegramPage() {
         <button className="btn-primary">Agregar</button>
       </FormularioAlta>
 
-      <ul className="card divide-y divide-line overflow-hidden">
+      <ul className="card mb-5 divide-y divide-line overflow-hidden">
         {(destinatarios ?? []).map((d) => (
           <li key={d.id} className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
@@ -81,6 +125,34 @@ export default async function TelegramPage() {
           <EmptyState mensaje="Todavía no hay destinatarios configurados." />
         )}
       </ul>
+
+      {activos > 0 && (
+        <form action={enviarPrueba} className="mb-6">
+          <button className="btn-secondary w-full sm:w-auto">Enviar aviso de prueba</button>
+          <p className="mt-2 text-xs text-ink-400">
+            Manda el mismo mensaje que enviaría el aviso diario, a los {activos} destinatario
+            {activos === 1 ? '' : 's'} activo{activos === 1 ? '' : 's'}, aunque hoy no haya
+            vencimientos.
+          </p>
+        </form>
+      )}
+
+      <Aviso>
+        <p className="mb-2 font-medium">Programar el aviso diario</p>
+        <p className="mb-2">
+          En cron-job.org creá una tarea que llame a esta dirección, con la zona horaria de Asunción
+          y el horario que prefieras (conviene bien temprano, para llegar antes del mediodía):
+        </p>
+        <p className="mb-2 break-all rounded-md bg-surface px-2.5 py-2 font-mono text-xs">
+          https://finanzas-py.vercel.app/api/cron/notificar-vencimientos
+        </p>
+        <p>
+          Autenticala con el header <span className="font-mono text-xs">Authorization: Bearer</span>{' '}
+          seguido de tu <span className="font-mono text-xs">CRON_SECRET</span>, o agregando{' '}
+          <span className="font-mono text-xs">?token=TU_CRON_SECRET</span> al final de la dirección
+          si te resulta más simple.
+        </p>
+      </Aviso>
     </div>
   );
 }
