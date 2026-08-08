@@ -3,6 +3,7 @@ import { getCurrentAccountId } from '@/lib/supabase/account';
 import { revalidatePath } from 'next/cache';
 import { EmptyState, Aviso } from '@/components/ui/Layout';
 import FormularioAlta from '@/components/ui/FormularioAlta';
+import TestTelegramButton, { type ResultadoPrueba } from '@/components/TestTelegramButton';
 import { sendTelegramBroadcast } from '@/lib/telegram';
 import { construirAvisoDiario } from '@/lib/avisos';
 
@@ -36,41 +37,60 @@ async function toggleRecipient(formData: FormData) {
 
 /**
  * Manda el aviso real (el mismo que enviaría el cron) a los destinatarios
- * activos, forzándolo aunque hoy no haya vencimientos. Sirve para verificar
- * que el token y los chat_id estén bien sin esperar al horario del cron.
+ * activos, forzándolo aunque hoy no haya vencimientos. Devuelve el
+ * resultado en vez de lanzar: un fallo de envío no debe romper la pantalla.
  */
-async function enviarPrueba() {
+async function enviarPrueba(_prev: ResultadoPrueba, _formData: FormData): Promise<ResultadoPrueba> {
   'use server';
-  const accountId = await getCurrentAccountId();
-  if (!accountId) throw new Error('No se encontró la cuenta del usuario');
 
-  const supabase = createSupabaseServerClient();
-  const { data: destinatarios } = await supabase
-    .from('telegram_recipients')
-    .select('chat_id')
-    .eq('account_id', accountId)
-    .eq('activo', true);
+  try {
+    const accountId = await getCurrentAccountId();
+    if (!accountId) {
+      return { ok: false, mensaje: 'No se encontró la cuenta de tu sesión. Cerrá sesión y volvé a entrar.' };
+    }
 
-  const chatIds = (destinatarios ?? []).map((d) => d.chat_id);
-  if (chatIds.length === 0) {
-    throw new Error('No hay destinatarios activos a quienes enviar la prueba.');
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return {
+        ok: false,
+        mensaje:
+          'Falta la variable TELEGRAM_BOT_TOKEN en Vercel. Cargala en Settings → Environment Variables y hacé un redeploy (las variables nuevas no se aplican al deploy anterior).',
+      };
+    }
+
+    const supabase = createSupabaseServerClient();
+    const { data: destinatarios } = await supabase
+      .from('telegram_recipients')
+      .select('chat_id')
+      .eq('account_id', accountId)
+      .eq('activo', true);
+
+    const chatIds = (destinatarios ?? []).map((d) => d.chat_id);
+    if (chatIds.length === 0) {
+      return { ok: false, mensaje: 'No hay destinatarios activos a quienes enviar la prueba.' };
+    }
+
+    const mensaje =
+      (await construirAvisoDiario(supabase, accountId, { forzar: true })) ?? 'Prueba de finanzas·py';
+
+    const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
+
+    if (fallidos.length > 0) {
+      return {
+        ok: false,
+        mensaje: `Enviado a ${enviados} de ${chatIds.length}. Falló: ${fallidos
+          .map((f) => `${f.chatId} — ${f.error}`)
+          .join(' · ')}`,
+      };
+    }
+
+    return {
+      ok: true,
+      mensaje: `Aviso enviado a ${enviados} destinatario${enviados === 1 ? '' : 's'}. Revisá Telegram.`,
+    };
+  } catch (err) {
+    const detalle = err instanceof Error ? err.message : String(err);
+    return { ok: false, mensaje: `No se pudo enviar: ${detalle}` };
   }
-
-  const mensaje =
-    (await construirAvisoDiario(supabase, accountId, { forzar: true })) ??
-    'Prueba de finanzas·py';
-
-  const { fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
-
-  if (fallidos.length > 0) {
-    throw new Error(
-      `No se pudo enviar a ${fallidos.length} destinatario(s): ${fallidos
-        .map((f) => `${f.chatId} (${f.error})`)
-        .join(', ')}`
-    );
-  }
-
-  revalidatePath('/configuracion/telegram');
 }
 
 export default async function TelegramPage() {
@@ -126,16 +146,7 @@ export default async function TelegramPage() {
         )}
       </ul>
 
-      {activos > 0 && (
-        <form action={enviarPrueba} className="mb-6">
-          <button className="btn-secondary w-full sm:w-auto">Enviar aviso de prueba</button>
-          <p className="mt-2 text-xs text-ink-400">
-            Manda el mismo mensaje que enviaría el aviso diario, a los {activos} destinatario
-            {activos === 1 ? '' : 's'} activo{activos === 1 ? '' : 's'}, aunque hoy no haya
-            vencimientos.
-          </p>
-        </form>
-      )}
+      {activos > 0 && <TestTelegramButton accion={enviarPrueba} cantidad={activos} />}
 
       <Aviso>
         <p className="mb-2 font-medium">Programar el aviso diario</p>

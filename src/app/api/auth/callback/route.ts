@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { ensureAccountForUser, linkAdditionalEmail } from '@/lib/supabase/onboarding';
+import { ensureAccountForUser, syncIdentidadesDelUsuario } from '@/lib/supabase/onboarding';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
         const userId = data.user.id;
 
         if (isLinking) {
-          await linkAdditionalEmail(supabase, userId, email);
+          // Registra todos los correos vinculados al usuario, no solo el
+          // principal (ver comentario en syncIdentidadesDelUsuario).
+          await syncIdentidadesDelUsuario(supabase);
         } else {
           await ensureAccountForUser(supabase, userId, email);
         }
@@ -29,9 +31,12 @@ export async function GET(request: NextRequest) {
         (err as { message?: string })?.message ??
         (typeof err === 'string' ? err : JSON.stringify(err));
       console.error('Error en callback de auth:', err);
-      return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
+      // Si el fallo fue al vincular, el usuario ya tiene sesión: mandarlo
+      // a /login lo dejaría en un limbo. Vuelve a la pantalla de cuenta.
+      const destino = isLinking ? '/configuracion/cuenta' : '/login';
+      return NextResponse.redirect(`${origin}${destino}?error=${encodeURIComponent(message)}`);
     }
   }
 
-  return NextResponse.redirect(`${origin}/`);
+  return NextResponse.redirect(`${origin}${isLinking ? '/configuracion/cuenta?vinculado=1' : '/'}`);
 }

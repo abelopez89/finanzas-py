@@ -9,6 +9,7 @@ const TABS = [
   { href: '/configuracion/categorias', label: 'Categorías' },
   { href: '/configuracion/saldo-inicial', label: 'Saldo inicial' },
   { href: '/configuracion/telegram', label: 'Telegram' },
+  { href: '/configuracion/cuenta', label: 'Cuenta' },
 ];
 
 /**

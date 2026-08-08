@@ -27,8 +27,34 @@ export async function sendTelegramMessage(chatId: string, text: string) {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Telegram respondió ${res.status}: ${body}`);
+    throw new Error(explicarErrorTelegram(res.status, body));
   }
+}
+
+/**
+ * Traduce los errores más comunes de la API de Telegram a algo accionable.
+ * El texto crudo ("Bad Request: chat not found") no dice qué hacer.
+ */
+export function explicarErrorTelegram(status: number, body: string): string {
+  const texto = body.toLowerCase();
+
+  if (texto.includes('chat not found')) {
+    return 'Telegram no encuentra ese chat. La persona tiene que escribirle al bot al menos una vez (o apretar "Start") antes de poder recibir mensajes. Si es un grupo, el ID tiene que empezar con "-".';
+  }
+  if (texto.includes('bot was blocked')) {
+    return 'Esa persona bloqueó al bot. Tiene que desbloquearlo desde Telegram.';
+  }
+  if (texto.includes('user is deactivated')) {
+    return 'La cuenta de Telegram de ese destinatario está desactivada.';
+  }
+  if (status === 401) {
+    return 'Telegram rechazó el token del bot. Revisá TELEGRAM_BOT_TOKEN en Vercel: tiene que ser el token completo, incluyendo la parte numérica y los dos puntos.';
+  }
+  if (status === 429) {
+    return 'Telegram está limitando los envíos por exceso de mensajes. Esperá unos minutos y reintentá.';
+  }
+
+  return `Telegram respondió ${status}: ${body}`;
 }
 
 /**
