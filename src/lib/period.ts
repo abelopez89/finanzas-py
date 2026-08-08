@@ -99,3 +99,19 @@ export function estaVencido(periodoISO: string, dia: number): boolean {
   const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
   return fechaDeEntry(periodoISO, dia).getTime() < hoyUTC;
 }
+
+/** Días que faltan para la fecha de aplicación (0 = vence hoy, negativo = vencido). */
+export function diasParaVencer(periodoISO: string, dia: number): number {
+  const hoy = new Date();
+  const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  const MS_DIA = 86_400_000;
+  return Math.round((fechaDeEntry(periodoISO, dia).getTime() - hoyUTC) / MS_DIA);
+}
+
+/** Ventana de atención: vence hoy o dentro de los próximos 3 días. */
+export const DIAS_AVISO_VENCIMIENTO = 3;
+
+export function estaPorVencer(periodoISO: string, dia: number): boolean {
+  const dias = diasParaVencer(periodoISO, dia);
+  return dias >= 0 && dias <= DIAS_AVISO_VENCIMIENTO;
+}

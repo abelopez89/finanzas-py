@@ -10,8 +10,8 @@ import {
   addIncomeExtra,
   deleteExpenseExtra,
   deleteIncomeExtra,
-  updateExpenseEntry,
-  updateIncomeEntry,
+  updateExpenseExtra,
+  updateIncomeExtra,
   cambiarEstadoGasto,
   cambiarEstadoIngreso,
 } from '@/lib/actions/entries';
@@ -23,7 +23,11 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
   const supabase = createSupabaseServerClient();
 
   let gastosQuery = accountId
-    ? supabase.from('expense_entries').select('*').eq('account_id', accountId).eq('es_extra', true)
+    ? supabase
+        .from('expense_entries')
+        .select('*, payment_methods(nombre)')
+        .eq('account_id', accountId)
+        .eq('es_extra', true)
     : null;
   let ingresosQuery = accountId
     ? supabase.from('income_entries').select('*').eq('account_id', accountId).eq('es_extra', true)
@@ -48,10 +52,29 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
     ? await Promise.all([
         supabase.from('payment_methods').select('*').eq('account_id', accountId).eq('activo', true),
         supabase.from('categories').select('*').eq('account_id', accountId).eq('activo', true),
-        gastosQuery!.order('fecha_vencimiento', { ascending: false }),
-        ingresosQuery!.order('fecha_aplicacion', { ascending: false }),
+        gastosQuery!,
+        ingresosQuery!,
       ])
     : [{ data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }];
+
+  // Orden: por fecha (más reciente primero) y después por método de pago.
+  const gastosOrdenados = [...(gastos ?? [])].sort((a, b) => {
+    const fa = a.fecha_vencimiento ?? '';
+    const fb = b.fecha_vencimiento ?? '';
+    if (fa !== fb) return fb.localeCompare(fa);
+    const mA = (a as any).payment_methods?.nombre ?? '';
+    const mB = (b as any).payment_methods?.nombre ?? '';
+    const porMetodo = mA.localeCompare(mB, 'es');
+    if (porMetodo !== 0) return porMetodo;
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
+
+  const ingresosOrdenados = [...(ingresos ?? [])].sort((a, b) => {
+    const fa = a.fecha_aplicacion ?? '';
+    const fb = b.fecha_aplicacion ?? '';
+    if (fa !== fb) return fb.localeCompare(fa);
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
 
   const hayFiltros = Boolean(searchParams.estado || searchParams.desde || searchParams.hasta);
 
@@ -173,16 +196,18 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
 
         <ExtrasList
           tipo="gasto"
-          items={(gastos ?? []).map((g) => ({
+          metodos={metodos ?? []}
+          items={gastosOrdenados.map((g) => ({
             id: g.id,
             nombre: g.nombre,
             monto: g.monto,
             estado: g.estado,
             fecha: g.fecha_vencimiento,
-            dia: g.dia,
+            metodoId: g.payment_method_id,
+            metodoNombre: (g as any).payment_methods?.nombre ?? null,
           }))}
           cambiarEstado={cambiarEstadoGasto}
-          updateEntry={updateExpenseEntry}
+          updateExtra={updateExpenseExtra}
           deleteEntry={deleteExpenseExtra}
         />
       </Section>
@@ -223,16 +248,17 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
 
         <ExtrasList
           tipo="ingreso"
-          items={(ingresos ?? []).map((i) => ({
+          items={ingresosOrdenados.map((i) => ({
             id: i.id,
             nombre: i.nombre,
             monto: i.monto,
             estado: i.estado,
             fecha: i.fecha_aplicacion,
-            dia: i.dia,
+            metodoId: null,
+            metodoNombre: null,
           }))}
           cambiarEstado={cambiarEstadoIngreso}
-          updateEntry={updateIncomeEntry}
+          updateExtra={updateIncomeExtra}
           deleteEntry={deleteIncomeExtra}
         />
       </Section>

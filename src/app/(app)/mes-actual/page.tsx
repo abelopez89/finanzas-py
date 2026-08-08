@@ -16,10 +16,12 @@ import {
   cambiarEstadoIngreso,
   deleteExpenseEntry,
   deleteIncomeEntry,
+  cambiarDiaMasivo,
 } from '@/lib/actions/entries';
 import GastosEntriesTable from '@/components/GastosEntriesTable';
 import IngresosEntriesTable from '@/components/IngresosEntriesTable';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
+import CambioDiaMasivo from '@/components/CambioDiaMasivo';
 import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
 
 type Filtros = {
@@ -110,6 +112,7 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     { data: gastosAnterioresRaw },
     { data: ingresosAnterioresRaw },
     { data: metodos },
+    { data: gastosDelPeriodoSinFiltrar },
   ] = accountId
     ? await Promise.all([
         gastosQuery!,
@@ -129,8 +132,16 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
           .neq('estado', 'confirmado')
           .lt('periodo', periodo),
         supabase.from('payment_methods').select('*').eq('account_id', accountId).eq('activo', true),
+        // Sin filtros: el panel de cambio masivo necesita ver todo el período
+        supabase
+          .from('expense_entries')
+          .select('dia, payment_method_id, estado')
+          .eq('account_id', accountId)
+          .eq('periodo', periodo)
+          .eq('es_extra', false),
       ])
     : [
+        { data: [] as any[] },
         { data: [] as any[] },
         { data: [] as any[] },
         { data: [] as any[] },
@@ -198,6 +209,12 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
           )}
         </div>
       )}
+
+      <CambioDiaMasivo
+        metodos={metodos ?? []}
+        gastos={gastosDelPeriodoSinFiltrar ?? []}
+        cambiarDiaMasivo={cambiarDiaMasivo}
+      />
 
       <FiltrosPanel hayFiltrosActivos={hayFiltros}>
         <form method="GET" className="grid grid-cols-2 gap-3 sm:grid-cols-3">

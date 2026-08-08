@@ -7,30 +7,36 @@ import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
 
-type Extra = {
+type Metodo = { id: string; nombre: string };
+
+export type Extra = {
   id: string;
   nombre: string;
   monto: number;
   estado: string;
   fecha: string | null;
-  dia: number;
+  metodoId: string | null;
+  metodoNombre: string | null;
 };
 
-/** Lista de extras (gastos o ingresos) con búsqueda en vivo. */
 export default function ExtrasList({
   items,
   tipo,
+  metodos = [],
   cambiarEstado,
-  updateEntry,
+  updateExtra,
   deleteEntry,
 }: {
   items: Extra[];
   tipo: 'gasto' | 'ingreso';
+  metodos?: Metodo[];
   cambiarEstado: (formData: FormData) => void;
-  updateEntry: (formData: FormData) => void;
+  updateExtra: (formData: FormData) => void;
   deleteEntry: (formData: FormData) => void;
 }) {
   const [busqueda, setBusqueda] = useState('');
+  const [editando, setEditando] = useState<string | null>(null);
+  const esGasto = tipo === 'gasto';
 
   const filtrados = useMemo(() => {
     if (!busqueda.trim()) return items;
@@ -39,8 +45,6 @@ export default function ExtrasList({
   }, [items, busqueda]);
 
   const total = filtrados.reduce((a, i) => a + Number(i.monto), 0);
-  const esGasto = tipo === 'gasto';
-  const editable = (estado: string) => estado === 'pendiente';
 
   const Acciones = ({ it }: { it: Extra }) => (
     <div className="flex flex-wrap items-center gap-1">
@@ -96,12 +100,21 @@ export default function ExtrasList({
         </>
       )}
       {it.estado === 'pendiente' && (
-        <form action={deleteEntry}>
-          <input type="hidden" name="id" value={it.id} />
-          <button className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600">
-            Eliminar
+        <>
+          <button
+            type="button"
+            onClick={() => setEditando(editando === it.id ? null : it.id)}
+            className="btn-row text-ink-500 hover:bg-canvas"
+          >
+            {editando === it.id ? 'Cerrar' : 'Editar'}
           </button>
-        </form>
+          <form action={deleteEntry}>
+            <input type="hidden" name="id" value={it.id} />
+            <button className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600">
+              Eliminar
+            </button>
+          </form>
+        </>
       )}
     </div>
   );
@@ -131,7 +144,10 @@ export default function ExtrasList({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate font-medium text-ink">{it.nombre}</p>
-                  <p className="mt-0.5 text-xs text-ink-400">{it.fecha ?? '—'}</p>
+                  <p className="mt-0.5 text-xs text-ink-400">
+                    {it.fecha ?? '—'}
+                    {esGasto && it.metodoNombre && ` · ${it.metodoNombre}`}
+                  </p>
                 </div>
                 <div className="shrink-0 text-right">
                   <Money
@@ -144,13 +160,48 @@ export default function ExtrasList({
                 </div>
               </div>
 
-              {editable(it.estado) && (
-                <form action={updateEntry} className="mt-3 flex items-center gap-2">
+              {editando === it.id && it.estado === 'pendiente' && (
+                <form
+                  action={updateExtra}
+                  className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-canvas p-3"
+                >
                   <input type="hidden" name="id" value={it.id} />
-                  <input type="hidden" name="_path" value="/extras" />
-                  <input type="hidden" name="dia" value={it.dia} />
-                  <MontoInput name="monto" defaultValue={it.monto} className="field-sm w-full" />
-                  <button className="btn-row shrink-0 bg-canvas text-ink-700">Guardar</button>
+                  <div>
+                    <label className="label">Monto</label>
+                    <MontoInput name="monto" defaultValue={it.monto} className="field-sm w-full" />
+                  </div>
+                  <div>
+                    <label className="label">{esGasto ? 'Vencimiento' : 'Fecha'}</label>
+                    <input
+                      name={esGasto ? 'fecha_vencimiento' : 'fecha_aplicacion'}
+                      type="date"
+                      defaultValue={it.fecha ?? ''}
+                      className="field-sm w-full"
+                      required
+                    />
+                  </div>
+                  {esGasto && (
+                    <div className="col-span-2">
+                      <label className="label">Método de pago</label>
+                      <select
+                        name="payment_method_id"
+                        defaultValue={it.metodoId ?? ''}
+                        className="field-sm w-full"
+                      >
+                        <option value="">Sin método</option>
+                        {metodos.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="col-span-2">
+                    <button className="btn-row w-full bg-pine-600 text-white hover:bg-pine-700">
+                      Guardar cambios
+                    </button>
+                  </div>
                 </form>
               )}
 

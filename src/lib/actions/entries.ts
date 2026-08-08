@@ -287,6 +287,92 @@ export async function deleteIncomeExtra(formData: FormData) {
   revalidatePath('/extras');
 }
 
+/**
+ * Edición completa de un gasto extra: monto, fecha de vencimiento y método
+ * de pago. Al cambiar la fecha se recalcula el período, para que el extra
+ * quede en el ciclo 27-26 que le corresponde y las previsiones lo ubiquen
+ * bien.
+ */
+export async function updateExpenseExtra(formData: FormData) {
+  const id = String(formData.get('id'));
+  const monto = Number(formData.get('monto')) || 0;
+  const fecha_vencimiento = String(formData.get('fecha_vencimiento') ?? '');
+  const payment_method_id = String(formData.get('payment_method_id') || '') || null;
+  if (!fecha_vencimiento) return;
+
+  const supabase = createSupabaseServerClient();
+  await supabase
+    .from('expense_entries')
+    .update({
+      monto,
+      fecha_vencimiento,
+      payment_method_id,
+      periodo: toISODate(getInicioPeriodoActual(new Date(`${fecha_vencimiento}T00:00:00Z`))),
+      dia: diaDeFecha(fecha_vencimiento),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('estado', 'pendiente');
+
+  revalidatePath('/extras');
+  revalidatePath('/previsiones');
+}
+
+export async function updateIncomeExtra(formData: FormData) {
+  const id = String(formData.get('id'));
+  const monto = Number(formData.get('monto')) || 0;
+  const fecha_aplicacion = String(formData.get('fecha_aplicacion') ?? '');
+  if (!fecha_aplicacion) return;
+
+  const supabase = createSupabaseServerClient();
+  await supabase
+    .from('income_entries')
+    .update({
+      monto,
+      fecha_aplicacion,
+      periodo: toISODate(getInicioPeriodoActual(new Date(`${fecha_aplicacion}T00:00:00Z`))),
+      dia: diaDeFecha(fecha_aplicacion),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('estado', 'pendiente');
+
+  revalidatePath('/extras');
+  revalidatePath('/previsiones');
+}
+
+/**
+ * Cambio masivo del día de pago dentro del período vigente: mueve todos los
+ * gastos PENDIENTES de un método de pago que caen en `dia_actual` hacia
+ * `dia_nuevo`. No toca los ya rescatados ni pagados (esos ya afectaron el
+ * fondo) ni la plantilla de origen.
+ */
+export async function cambiarDiaMasivo(formData: FormData) {
+  const accountId = await getCurrentAccountId();
+  if (!accountId) return;
+
+  const payment_method_id = String(formData.get('payment_method_id') || '');
+  const diaActual = Number(formData.get('dia_actual'));
+  const diaNuevo = Number(formData.get('dia_nuevo'));
+
+  if (!payment_method_id || !diaActual || !diaNuevo) return;
+  if (diaNuevo < 1 || diaNuevo > 31) return;
+
+  const supabase = createSupabaseServerClient();
+  const periodo = toISODate(getInicioPeriodoActual());
+
+  await supabase
+    .from('expense_entries')
+    .update({ dia: diaNuevo, updated_at: new Date().toISOString() })
+    .eq('account_id', accountId)
+    .eq('periodo', periodo)
+    .eq('payment_method_id', payment_method_id)
+    .eq('dia', diaActual)
+    .eq('estado', 'pendiente');
+
+  revalidatePath('/mes-actual');
+}
+
 // ------------------------------ Eliminar movimientos del mes ------------------------------
 
 /**

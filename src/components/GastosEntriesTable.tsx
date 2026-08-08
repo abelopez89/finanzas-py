@@ -6,7 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
-import { formatPeriodoCorto, estaVencido } from '@/lib/period';
+import { formatPeriodoCorto, estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
 
 type Gasto = {
   id: string;
@@ -20,6 +20,29 @@ type Gasto = {
 /** Vencido = fecha pasada y todavía sin pagar. */
 function vencido(g: Gasto) {
   return g.estado !== 'pagado' && estaVencido(g.periodo, g.dia);
+}
+
+/**
+ * Por vencer = vence hoy o en los próximos días y todavía está pendiente
+ * de rescate. Una vez rescatado la plata ya salió del fondo, así que deja
+ * de ser urgente.
+ */
+function porVencer(g: Gasto) {
+  return g.estado === 'pendiente' && estaPorVencer(g.periodo, g.dia);
+}
+
+function EtiquetaPorVencer({ g }: { g: Gasto }) {
+  const dias = diasParaVencer(g.periodo, g.dia);
+  const texto = dias === 0 ? 'Vence hoy' : dias === 1 ? 'Vence mañana' : `Vence en ${dias} días`;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-ochre-50 px-2 py-0.5 text-[11px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100">
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7.5V12l2.5 2" />
+      </svg>
+      {texto}
+    </span>
+  );
 }
 
 function EtiquetaVencido() {
@@ -112,11 +135,21 @@ export default function GastosEntriesTable({
         {filtrados.map((g) => (
           <li
             key={g.id}
-            className={`card flex overflow-hidden ${vencido(g) ? 'border-brick-100 bg-brick-50/30' : ''}`}
+            className={`card flex overflow-hidden ${
+              vencido(g)
+                ? 'border-brick-100 bg-brick-50/30'
+                : porVencer(g)
+                  ? 'border-ochre-100 bg-ochre-50/30'
+                  : ''
+            }`}
           >
             <span
               className={`w-1 shrink-0 ${
-                vencido(g) ? 'bg-brick-600' : ESTADO_BARRA[g.estado] ?? ESTADO_BARRA.pendiente
+                vencido(g)
+                  ? 'bg-brick-600'
+                  : porVencer(g)
+                    ? 'bg-ochre-600'
+                    : ESTADO_BARRA[g.estado] ?? ESTADO_BARRA.pendiente
               }`}
             />
             <div className="min-w-0 flex-1 p-3.5">
@@ -127,9 +160,9 @@ export default function GastosEntriesTable({
                     Día {g.dia}
                     {mostrarPeriodo && ` · ${periodoLabel(g.periodo)}`}
                   </p>
-                  {vencido(g) && (
+                  {(vencido(g) || porVencer(g)) && (
                     <div className="mt-1.5">
-                      <EtiquetaVencido />
+                      {vencido(g) ? <EtiquetaVencido /> : <EtiquetaPorVencer g={g} />}
                     </div>
                   )}
                 </div>
@@ -193,14 +226,20 @@ export default function GastosEntriesTable({
               <tr
                 key={g.id}
                 className={`transition-colors ${
-                  vencido(g) ? 'bg-brick-50/50 hover:bg-brick-50' : 'hover:bg-canvas/50'
+                  vencido(g)
+                    ? 'bg-brick-50/50 hover:bg-brick-50'
+                    : porVencer(g)
+                      ? 'bg-ochre-50/40 hover:bg-ochre-50'
+                      : 'hover:bg-canvas/50'
                 }`}
               >
                 <td className="px-4 py-3 align-middle font-medium text-ink">
                   <span className="flex items-center gap-2">
-                    {vencido(g) && (
+                    {vencido(g) ? (
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brick-600" title="Vencido" />
-                    )}
+                    ) : porVencer(g) ? (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ochre-600" title="Por vencer" />
+                    ) : null}
                     {g.nombre}
                   </span>
                 </td>
@@ -231,7 +270,13 @@ export default function GastosEntriesTable({
                   )}
                 </td>
                 <td className="px-4 py-3 align-middle">
-                  {vencido(g) ? <EtiquetaVencido /> : <StatusPill estado={g.estado} />}
+                  {vencido(g) ? (
+                    <EtiquetaVencido />
+                  ) : porVencer(g) ? (
+                    <EtiquetaPorVencer g={g} />
+                  ) : (
+                    <StatusPill estado={g.estado} />
+                  )}
                 </td>
                 <td className="px-4 py-3 align-middle">
                   <Acciones g={g} />

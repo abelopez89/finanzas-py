@@ -50,13 +50,20 @@ export default async function DashboardPage() {
         .eq('periodo', periodoActualISO),
     ]);
 
+  const { data: pagadosDelMes } = await supabase
+    .from('expense_entries')
+    .select('monto')
+    .eq('account_id', accountId)
+    .eq('periodo', periodoActualISO)
+    .eq('estado', 'pagado');
+
   const saldoActual = calcularSaldoFondo(movimientos ?? []);
 
   const pendientesOrdenados = [...(pendientes ?? [])].sort(
     (a, b) => ordenDiaPeriodo(a.dia) - ordenDiaPeriodo(b.dia)
   );
   const totalPendiente = pendientesOrdenados.reduce((a, g) => a + Number(g.monto), 0);
-  const porRescatar = pendientesOrdenados.filter((g) => g.estado === 'pendiente');
+  const totalPagado = (pagadosDelMes ?? []).reduce((a, g) => a + Number(g.monto), 0);
 
   // Ingresos vs egresos por período de facturación (no mes calendario)
   const buckets = new Map<string, { ingresos: number; egresos: number }>();
@@ -99,17 +106,17 @@ export default async function DashboardPage() {
       {/* ---------- Dos cifras de acción ---------- */}
       <div className="mb-8 grid grid-cols-2 gap-3">
         <div className="card p-4">
-          <p className="text-[11px] uppercase tracking-wide text-ink-400">Por rescatar</p>
-          <Money value={porRescatar.reduce((a, g) => a + Number(g.monto), 0)} size="lg" className="mt-1.5 block font-semibold text-ochre-700" />
-          <p className="mt-1 text-xs text-ink-400">
-            {porRescatar.length} {porRescatar.length === 1 ? 'gasto' : 'gastos'}
-          </p>
-        </div>
-        <div className="card p-4">
           <p className="text-[11px] uppercase tracking-wide text-ink-400">Pendiente del mes</p>
           <Money value={totalPendiente} size="lg" className="mt-1.5 block font-semibold text-ink" />
           <p className="mt-1 text-xs text-ink-400">
             {pendientesOrdenados.length} sin pagar
+          </p>
+        </div>
+        <div className="card p-4">
+          <p className="text-[11px] uppercase tracking-wide text-ink-400">Pagado del mes</p>
+          <Money value={totalPagado} size="lg" className="mt-1.5 block font-semibold text-pine-700" />
+          <p className="mt-1 text-xs text-ink-400">
+            {(pagadosDelMes ?? []).length} {(pagadosDelMes ?? []).length === 1 ? 'gasto' : 'gastos'}
           </p>
         </div>
       </div>
