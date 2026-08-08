@@ -9,6 +9,8 @@ import {
   formatPeriodoLabel,
 } from '@/lib/period';
 import LineChartSaldoProyectado from '@/components/LineChartSaldoProyectado';
+import Money from '@/components/ui/Money';
+import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
 
 export default async function PrevisionesPage() {
   const accountId = await getCurrentAccountId();
@@ -16,9 +18,9 @@ export default async function PrevisionesPage() {
 
   if (!accountId) {
     return (
-      <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
-        No se encontró una cuenta vinculada a tu sesión. Probá cerrar sesión y volver a entrar.
-      </p>
+      <Aviso tono="alerta">
+        No encontramos una cuenta vinculada a esta sesión. Cerrá sesión y volvé a entrar.
+      </Aviso>
     );
   }
 
@@ -130,78 +132,113 @@ export default async function PrevisionesPage() {
   const primerNegativo = filas.find((f) => f.saldo < 0);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="mb-1 text-2xl font-semibold">Previsiones a 12 meses</h1>
-        <p className="text-sm text-gray-500">
-          Proyección del saldo del fondo asumiendo que las plantillas activas se repiten cada período,
-          más cualquier gasto o ingreso extra que hayas cargado con una fecha futura.
-        </p>
-      </div>
-
-      <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
-        💡 Para que un gasto o ingreso puntual afecte una previsión futura (por ejemplo, un viaje
-        dentro de 4 meses), cargalo en <strong>Extras</strong> con la fecha correspondiente — se va a
-        sumar automáticamente al período que le toca.
-      </p>
+    <div>
+      <PageHeader
+        titulo="Previsiones"
+        descripcion="Proyección a 12 períodos, asumiendo que las plantillas activas se repiten. Incluye los extras cargados con fecha futura."
+      />
 
       {primerNegativo && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-          ⚠️ El saldo proyectado se vuelve negativo en{' '}
-          <strong>{formatPeriodoLabel(primerNegativo.periodo)}</strong>.
-        </p>
+        <div className="mb-6">
+          <Aviso tono="error">
+            El saldo proyectado se vuelve negativo en{' '}
+            <strong className="font-semibold">{formatPeriodoLabel(primerNegativo.periodo)}</strong>.
+          </Aviso>
+        </div>
       )}
 
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Evolución del saldo proyectado</h2>
-        <div className="rounded-md border border-gray-200 bg-white p-4">
+      <Section titulo="Evolución del saldo">
+        <div className="card p-3 sm:p-4">
           <LineChartSaldoProyectado data={chartData} />
         </div>
-      </section>
+      </Section>
 
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Detalle por período</h2>
-        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+      <Section titulo="Detalle por período">
+        {/* Móvil: fichas */}
+        <ul className="space-y-2 md:hidden">
+          {filas.map((f, idx) => (
+            <li
+              key={idx}
+              className={`card p-4 ${f.saldo < 0 ? 'border-brick-100 bg-brick-50/40' : ''}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-ink">
+                    {idx === 0 ? 'Actual' : formatPeriodoCorto(f.periodo)}
+                  </span>
+                  {f.tieneExtra && (
+                    <span className="rounded-full bg-ochre-50 px-2 py-0.5 text-[10px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100">
+                      extra
+                    </span>
+                  )}
+                </div>
+                <Money
+                  value={f.saldo}
+                  className={`font-semibold ${f.saldo < 0 ? 'text-brick-600' : 'text-ink'}`}
+                />
+              </div>
+              <div className="mt-2.5 flex gap-4 border-t border-line pt-2.5 text-xs">
+                <span className="text-ink-400">
+                  Ingresos <Money value={f.ingresos} size="sm" className="text-pine-700" />
+                </span>
+                <span className="text-ink-400">
+                  Gastos <Money value={f.gastos} size="sm" className="text-brick-600" />
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {/* Escritorio: tabla */}
+        <div className="hidden overflow-hidden rounded-card border border-line bg-surface shadow-card md:block">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-2">Período</th>
-                <th className="px-4 py-2">Ingresos esperados</th>
-                <th className="px-4 py-2">Gastos esperados</th>
-                <th className="px-4 py-2">Saldo resultante</th>
+            <thead>
+              <tr className="border-b border-line bg-canvas/60 text-left text-[11px] uppercase tracking-wider text-ink-500">
+                <th className="px-4 py-2.5 font-semibold">Período</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Ingresos</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Gastos</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Saldo resultante</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line">
               {filas.map((f, idx) => (
-                <tr key={idx} className={f.saldo < 0 ? 'bg-red-50' : ''}>
-                  <td className="px-4 py-2">
-                    {idx === 0 ? 'Actual' : formatPeriodoCorto(f.periodo)}
+                <tr key={idx} className={f.saldo < 0 ? 'bg-brick-50/50' : 'hover:bg-canvas/50'}>
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-ink">
+                      {idx === 0 ? 'Actual' : formatPeriodoCorto(f.periodo)}
+                    </span>
                     {f.tieneExtra && (
                       <span
-                        title="Este período incluye un extra cargado con fecha futura"
-                        className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700"
+                        title="Este período incluye un extra con fecha futura"
+                        className="ml-2 rounded-full bg-ochre-50 px-2 py-0.5 text-[10px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100"
                       >
-                        + extra
+                        extra
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-brand-700">
-                    +₲ {f.ingresos.toLocaleString('es-PY')}
+                  <td className="px-4 py-3 text-right">
+                    <Money value={f.ingresos} signo="ingreso" className="text-pine-700" />
                   </td>
-                  <td className="px-4 py-2 text-red-600">-₲ {f.gastos.toLocaleString('es-PY')}</td>
-                  <td
-                    className={`px-4 py-2 font-medium ${
-                      f.saldo < 0 ? 'text-red-700' : 'text-gray-800'
-                    }`}
-                  >
-                    ₲ {f.saldo.toLocaleString('es-PY')}
+                  <td className="px-4 py-3 text-right">
+                    <Money value={f.gastos} signo="egreso" className="text-brick-600" />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Money
+                      value={f.saldo}
+                      className={`font-semibold ${f.saldo < 0 ? 'text-brick-600' : 'text-ink'}`}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
+      </Section>
+
+      <p className="text-xs text-ink-400">
+        Para que un gasto puntual afecte una previsión futura, cargalo en Extras con su fecha — se
+        suma solo al período que le toca.
+      </p>
     </div>
   );
 }

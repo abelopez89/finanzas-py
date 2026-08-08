@@ -4,7 +4,17 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recha
 
 type Item = { categoria: string; monto: number };
 
-const COLORES = ['#1f9d5a', '#178048', '#f59e0b', '#dc2626', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
+/** Escala derivada del acento pino, con ocre y ladrillo como contrapuntos. */
+const COLORES = [
+  '#17603F',
+  '#2E7D57',
+  '#A66A15',
+  '#B4322B',
+  '#2A3648',
+  '#4E8C6E',
+  '#C99A4A',
+  '#7A8899',
+];
 
 export default function PieChartCategorias({ data }: { data: Item[] }) {
   return (
@@ -15,16 +25,31 @@ export default function PieChartCategorias({ data }: { data: Item[] }) {
           dataKey="monto"
           nameKey="categoria"
           cx="50%"
-          cy="50%"
-          outerRadius={90}
-          label={(entry) => entry.categoria}
+          cy="45%"
+          innerRadius={52}
+          outerRadius={88}
+          paddingAngle={2}
+          stroke="#FFFFFF"
+          strokeWidth={2}
         >
           {data.map((_, index) => (
             <Cell key={index} fill={COLORES[index % COLORES.length]} />
           ))}
         </Pie>
-        <Tooltip formatter={(v: number) => `₲ ${v.toLocaleString('es-PY')}`} />
-        <Legend />
+        <Tooltip
+          formatter={(v: number) => `₲ ${v.toLocaleString('es-PY')}`}
+          contentStyle={{
+            borderRadius: 10,
+            border: '1px solid #E2E7ED',
+            fontSize: 13,
+            boxShadow: '0 4px 16px rgba(11,18,32,0.08)',
+          }}
+        />
+        <Legend
+          iconType="circle"
+          iconSize={8}
+          wrapperStyle={{ fontSize: 12, color: '#556479' }}
+        />
       </PieChart>
     </ResponsiveContainer>
   );

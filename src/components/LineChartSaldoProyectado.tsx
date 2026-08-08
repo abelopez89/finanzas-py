@@ -13,21 +13,46 @@ import {
 
 type Item = { periodo: string; saldo: number };
 
+const fmtCorto = (v: number) =>
+  Math.abs(v) >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : `${Math.round(v / 1000)}k`;
+
 export default function LineChartSaldoProyectado({ data }: { data: Item[] }) {
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-        <XAxis dataKey="periodo" tick={{ fontSize: 12 }} />
-        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `₲${(v / 1_000_000).toFixed(1)}M`} />
-        <Tooltip formatter={(v: number) => `₲ ${v.toLocaleString('es-PY')}`} />
-        <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="4 4" />
+    <ResponsiveContainer width="100%" height={270}>
+      <LineChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="#E2E7ED" />
+        <XAxis
+          dataKey="periodo"
+          tick={{ fontSize: 11, fill: '#7A8899' }}
+          axisLine={{ stroke: '#E2E7ED' }}
+          tickLine={false}
+          interval="preserveStartEnd"
+        />
+        <YAxis
+          tick={{ fontSize: 11, fill: '#7A8899' }}
+          tickFormatter={fmtCorto}
+          axisLine={false}
+          tickLine={false}
+          width={48}
+        />
+        <Tooltip
+          formatter={(v: number) => `₲ ${v.toLocaleString('es-PY')}`}
+          contentStyle={{
+            borderRadius: 10,
+            border: '1px solid #E2E7ED',
+            fontSize: 13,
+            boxShadow: '0 4px 16px rgba(11,18,32,0.08)',
+          }}
+        />
+        {/* La línea de cero es el dato crítico: cuándo el fondo se agota */}
+        <ReferenceLine y={0} stroke="#B4322B" strokeDasharray="4 4" />
         <Line
           type="monotone"
           dataKey="saldo"
-          stroke="#178048"
+          stroke="#17603F"
           strokeWidth={2}
-          dot={{ r: 3 }}
+          dot={{ r: 2.5, fill: '#17603F', strokeWidth: 0 }}
+          activeDot={{ r: 5 }}
           name="Saldo proyectado"
         />
       </LineChart>

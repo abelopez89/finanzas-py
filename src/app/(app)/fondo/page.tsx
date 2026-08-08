@@ -4,6 +4,10 @@ import { calcularSaldoFondo } from '@/lib/fund';
 import { getMovimientosUnificados, type FiltrosMovimientos } from '@/lib/movimientos';
 import { toISODate } from '@/lib/period';
 import MontoInput from '@/components/MontoInput';
+import Money from '@/components/ui/Money';
+import MovimientosList from '@/components/MovimientosList';
+import FiltrosPanel from '@/components/ui/FiltrosPanel';
+import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
 import { revalidatePath } from 'next/cache';
 
 async function registrarChequeoSaldo(formData: FormData) {
@@ -53,22 +57,15 @@ async function registrarChequeoSaldo(formData: FormData) {
   revalidatePath('/fondo');
 }
 
-const ESTADO_STYLES: Record<string, string> = {
-  pendiente: 'bg-gray-100 text-gray-600',
-  rescatado: 'bg-amber-100 text-amber-700',
-  pagado: 'bg-brand-100 text-brand-700',
-  confirmado: 'bg-brand-100 text-brand-700',
-};
-
 export default async function FondoPage({ searchParams }: { searchParams: FiltrosMovimientos }) {
   const accountId = await getCurrentAccountId();
   const supabase = createSupabaseServerClient();
 
   if (!accountId) {
     return (
-      <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
-        No se encontró una cuenta vinculada a tu sesión. Probá cerrar sesión y volver a entrar.
-      </p>
+      <Aviso tono="alerta">
+        No encontramos una cuenta vinculada a esta sesión. Cerrá sesión y volvé a entrar.
+      </Aviso>
     );
   }
 
@@ -79,233 +76,203 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
       .select('*')
       .eq('account_id', accountId)
       .order('fecha', { ascending: false })
-      .limit(10),
+      .limit(6),
     getMovimientosUnificados(accountId, searchParams),
   ]);
 
   const saldoActual = calcularSaldoFondo(movimientosFondo ?? []);
-
   const totalGastos = movimientos.filter((m) => m.tipo === 'Gasto').reduce((a, m) => a + m.monto, 0);
-  const totalIngresos = movimientos.filter((m) => m.tipo === 'Ingreso').reduce((a, m) => a + m.monto, 0);
+  const totalIngresos = movimientos
+    .filter((m) => m.tipo === 'Ingreso')
+    .reduce((a, m) => a + m.monto, 0);
 
   const hayFiltros = Boolean(
-    searchParams.q ||
-      searchParams.tipo ||
-      searchParams.origen ||
-      searchParams.desde ||
-      searchParams.hasta
+    searchParams.q || searchParams.tipo || searchParams.origen || searchParams.desde || searchParams.hasta
   );
-
   const queryString = new URLSearchParams(
     Object.entries(searchParams).filter(([, v]) => v) as [string, string][]
   ).toString();
 
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="mb-1 text-2xl font-semibold">Fondo mutuo</h1>
-        <p className="text-sm text-gray-500">
-          Saldo controlado por el sistema en base a todos los movimientos confirmados.
-        </p>
-      </div>
+    <div>
+      <PageHeader titulo="Fondo mutuo" />
 
-      <div className="rounded-md border border-gray-200 bg-white p-6">
-        <p className="text-xs uppercase text-gray-400">Saldo actual (calculado)</p>
-        <p className="mt-1 text-3xl font-semibold text-brand-700">
-          ₲ {saldoActual.toLocaleString('es-PY')}
+      {/* ---------- Saldo ---------- */}
+      <section className="mb-6 overflow-hidden rounded-card bg-ink px-5 py-6 text-white sm:px-7 sm:py-8">
+        <p className="text-[11px] uppercase tracking-[0.14em] text-ink-300">Saldo actual</p>
+        <p className="mt-2 font-mono text-[34px] font-semibold leading-none tracking-tight sm:text-[44px]">
+          <span className="mr-2 text-[0.5em] font-normal text-ink-300">₲</span>
+          {new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(Math.round(saldoActual))}
         </p>
-      </div>
-
-      {/* ------------------------- Chequeo de saldo / interés ------------------------- */}
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Registrar saldo actual del fondo</h2>
-        <p className="mb-2 text-sm text-gray-500">
-          Ingresá el saldo que te muestra tu app/banco hoy. La diferencia contra el saldo calculado
-          por el sistema se registra automáticamente como interés generado.
+        <p className="mt-3 text-[13px] text-ink-300">
+          Calculado sobre todos los movimientos confirmados.
         </p>
-        <form action={registrarChequeoSaldo} className="flex gap-2">
-          <MontoInput
-            name="monto_informado"
-            placeholder="Saldo actual del fondo ₲"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <input
-            name="fecha"
-            type="date"
-            defaultValue={new Date().toISOString().slice(0, 10)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-            Registrar
-          </button>
-        </form>
+      </section>
 
-        {(chequeos ?? []).length > 0 && (
-          <div className="mt-4 overflow-hidden rounded-md border border-gray-200 bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-                <tr>
-                  <th className="px-4 py-2">Fecha</th>
-                  <th className="px-4 py-2">Saldo informado</th>
-                  <th className="px-4 py-2">Saldo esperado</th>
-                  <th className="px-4 py-2">Interés</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+      {/* ---------- Registrar saldo real / interés ---------- */}
+      <Section titulo="Registrar saldo real">
+        <div className="card p-4">
+          <p className="mb-4 text-sm text-ink-500">
+            Ingresá el saldo que muestra tu banco hoy. La diferencia contra el saldo calculado se
+            registra como interés generado.
+          </p>
+          <form action={registrarChequeoSaldo} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+            <div>
+              <label className="label" htmlFor="saldo-real">
+                Saldo del banco
+              </label>
+              <MontoInput name="monto_informado" placeholder="0" required />
+            </div>
+            <div>
+              <label className="label" htmlFor="fecha-chequeo">
+                Fecha
+              </label>
+              <input
+                id="fecha-chequeo"
+                name="fecha"
+                type="date"
+                defaultValue={new Date().toISOString().slice(0, 10)}
+                className="field"
+                required
+              />
+            </div>
+            <button className="btn-primary">Registrar</button>
+          </form>
+
+          {(chequeos ?? []).length > 0 && (
+            <div className="mt-5 border-t border-line pt-4">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+                Últimos registros
+              </p>
+              <ul className="space-y-2">
                 {(chequeos ?? []).map((c) => (
-                  <tr key={c.id}>
-                    <td className="px-4 py-2">{c.fecha}</td>
-                    <td className="px-4 py-2">₲ {Number(c.monto_informado).toLocaleString('es-PY')}</td>
-                    <td className="px-4 py-2">
-                      ₲ {Number(c.saldo_esperado_sistema).toLocaleString('es-PY')}
-                    </td>
-                    <td
-                      className={`px-4 py-2 font-medium ${
-                        Number(c.interes_calculado) >= 0 ? 'text-brand-700' : 'text-red-600'
+                  <li key={c.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-mono text-[13px] text-ink-500">{c.fecha}</span>
+                    <span className="flex-1 truncate text-right text-ink-400">
+                      informado <Money value={c.monto_informado} size="sm" className="text-ink-500" />
+                    </span>
+                    <span
+                      className={`shrink-0 font-medium ${
+                        Number(c.interes_calculado) >= 0 ? 'text-pine-700' : 'text-brick-600'
                       }`}
                     >
-                      ₲ {Number(c.interes_calculado).toLocaleString('es-PY')}
-                    </td>
-                  </tr>
+                      <Money
+                        value={Math.abs(Number(c.interes_calculado))}
+                        signo={Number(c.interes_calculado) >= 0 ? 'ingreso' : 'egreso'}
+                        size="sm"
+                      />
+                    </span>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* ------------------------- Movimientos confirmados ------------------------- */}
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Movimientos</h2>
-        <p className="mb-3 text-sm text-gray-500">
-          Todo lo que ya afectó el saldo del fondo: gastos pagados, ingresos confirmados (regulares y
-          extra), intereses y el saldo inicial.
-        </p>
-
-        <form
-          method="GET"
-          className="mb-4 flex flex-wrap items-end gap-3 rounded-md border border-gray-200 bg-white p-4"
-        >
-          <div>
-            <label className="mb-1 block text-xs text-gray-500">Nombre</label>
-            <input
-              name="q"
-              defaultValue={searchParams.q ?? ''}
-              placeholder="Buscar..."
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-gray-500">Tipo</label>
-            <select
-              name="tipo"
-              defaultValue={searchParams.tipo ?? ''}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Todos</option>
-              <option value="Gasto">Gasto</option>
-              <option value="Ingreso">Ingreso</option>
-              <option value="Interés">Interés</option>
-              <option value="Saldo inicial">Saldo inicial</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-gray-500">Origen</label>
-            <select
-              name="origen"
-              defaultValue={searchParams.origen ?? ''}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Todos</option>
-              <option value="Regular">Regular</option>
-              <option value="Extra">Extra</option>
-              <option value="Fondo">Fondo</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-gray-500">Desde</label>
-            <input
-              name="desde"
-              type="date"
-              defaultValue={searchParams.desde ?? ''}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs text-gray-500">Hasta</label>
-            <input
-              name="hasta"
-              type="date"
-              defaultValue={searchParams.hasta ?? ''}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-            Filtrar
-          </button>
-          {hayFiltros && (
-            <a href="/fondo" className="text-sm text-gray-400 hover:underline">
-              Limpiar filtros
-            </a>
+              </ul>
+            </div>
           )}
-          <a
-            href={`/api/movimientos/export${queryString ? `?${queryString}` : ''}`}
-            className="ml-auto rounded-md border border-brand-600 px-4 py-2 text-sm text-brand-700 hover:bg-brand-50"
-          >
-            Descargar Excel
-          </a>
-        </form>
+        </div>
+      </Section>
 
-        <div className="mb-3 flex gap-6 text-sm text-gray-600">
-          <p>
-            Total gastos: <strong className="text-red-600">₲ {totalGastos.toLocaleString('es-PY')}</strong>
-          </p>
-          <p>
-            Total ingresos:{' '}
-            <strong className="text-brand-700">₲ {totalIngresos.toLocaleString('es-PY')}</strong>
-          </p>
+      {/* ---------- Movimientos ---------- */}
+      <Section titulo="Movimientos confirmados">
+        <div className="mb-3 grid grid-cols-2 gap-3">
+          <div className="card p-3.5">
+            <p className="text-[11px] uppercase tracking-wide text-ink-400">Egresos</p>
+            <Money value={totalGastos} className="mt-1 block font-semibold text-brick-600" />
+          </div>
+          <div className="card p-3.5">
+            <p className="text-[11px] uppercase tracking-wide text-ink-400">Ingresos</p>
+            <Money value={totalIngresos} className="mt-1 block font-semibold text-pine-700" />
+          </div>
         </div>
 
-        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-2">Fecha</th>
-                <th className="px-4 py-2">Tipo</th>
-                <th className="px-4 py-2">Origen</th>
-                <th className="px-4 py-2">Nombre</th>
-                <th className="px-4 py-2 text-right">Monto</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {movimientos.map((m) => (
-                <tr key={`${m.tipo}-${m.id}`}>
-                  <td className="px-4 py-2">{toISODate(m.fecha)}</td>
-                  <td className="px-4 py-2">{m.tipo}</td>
-                  <td className="px-4 py-2 text-gray-500">{m.origen}</td>
-                  <td className="px-4 py-2">{m.nombre}</td>
-                  <td
-                    className={`px-4 py-2 text-right font-medium ${
-                      m.tipo === 'Gasto' ? 'text-red-600' : 'text-brand-700'
-                    }`}
-                  >
-                    {m.tipo === 'Gasto' ? '-' : '+'}₲ {m.monto.toLocaleString('es-PY')}
-                  </td>
-                </tr>
-              ))}
-              {movimientos.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-3 text-sm text-gray-400">
-                    No hay movimientos que coincidan con los filtros.
-                  </td>
-                </tr>
+        <FiltrosPanel hayFiltrosActivos={hayFiltros}>
+          <form method="GET" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="col-span-2 sm:col-span-3">
+              <label className="label" htmlFor="q">
+                Buscar
+              </label>
+              <input
+                id="q"
+                name="q"
+                defaultValue={searchParams.q ?? ''}
+                placeholder="Nombre del movimiento"
+                className="field"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="tipo">
+                Tipo
+              </label>
+              <select id="tipo" name="tipo" defaultValue={searchParams.tipo ?? ''} className="field">
+                <option value="">Todos</option>
+                <option value="Gasto">Gasto</option>
+                <option value="Ingreso">Ingreso</option>
+                <option value="Interés">Interés</option>
+                <option value="Saldo inicial">Saldo inicial</option>
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="origen">
+                Origen
+              </label>
+              <select id="origen" name="origen" defaultValue={searchParams.origen ?? ''} className="field">
+                <option value="">Todos</option>
+                <option value="Regular">Regular</option>
+                <option value="Extra">Extra</option>
+                <option value="Fondo">Fondo</option>
+              </select>
+            </div>
+            <div className="hidden sm:block" />
+            <div>
+              <label className="label" htmlFor="desde">
+                Desde
+              </label>
+              <input
+                id="desde"
+                name="desde"
+                type="date"
+                defaultValue={searchParams.desde ?? ''}
+                className="field"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="hasta">
+                Hasta
+              </label>
+              <input
+                id="hasta"
+                name="hasta"
+                type="date"
+                defaultValue={searchParams.hasta ?? ''}
+                className="field"
+              />
+            </div>
+            <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-3">
+              <button className="btn-primary flex-1 sm:flex-none">Aplicar</button>
+              {hayFiltros && (
+                <a href="/fondo" className="btn-secondary">
+                  Limpiar
+                </a>
               )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              <a
+                href={`/api/movimientos/export${queryString ? `?${queryString}` : ''}`}
+                className="btn-secondary sm:ml-auto"
+              >
+                Descargar Excel
+              </a>
+            </div>
+          </form>
+        </FiltrosPanel>
+
+        <MovimientosList
+          movimientos={movimientos.map((m) => ({
+            id: m.id,
+            tipo: m.tipo,
+            origen: m.origen,
+            nombre: m.nombre,
+            fecha: toISODate(m.fecha),
+            monto: m.monto,
+          }))}
+        />
+      </Section>
     </div>
   );
 }

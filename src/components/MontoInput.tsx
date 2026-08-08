@@ -8,6 +8,8 @@ interface MontoInputProps {
   placeholder?: string;
   required?: boolean;
   className?: string;
+  /** Muestra el símbolo ₲ fijo dentro del campo. */
+  conSimbolo?: boolean;
 }
 
 function soloDigitos(valor: string): string {
@@ -20,13 +22,10 @@ function formatearConMiles(digitos: string): string {
 }
 
 /**
- * Input de monto en guaraníes: muestra separador de miles mientras se
- * escribe (ej: 2.673.000) pero envía el valor numérico sin formato en un
- * campo oculto con el `name` real, para que los server actions lo lean
- * igual que antes con `Number(formData.get('monto'))`.
- *
- * Los guaraníes no usan decimales en la práctica, así que este input solo
- * trabaja con números enteros.
+ * Campo de monto en guaraníes: muestra separador de miles mientras se
+ * escribe (2.673.000) pero envía el valor numérico limpio en un campo
+ * oculto con el `name` real. Teclado numérico en móvil.
+ * Los guaraníes no usan decimales, así que trabaja solo con enteros.
  */
 export default function MontoInput({
   name,
@@ -34,6 +33,7 @@ export default function MontoInput({
   placeholder,
   required,
   className,
+  conSimbolo = true,
 }: MontoInputProps) {
   const [digitos, setDigitos] = useState(() =>
     defaultValue !== undefined && defaultValue !== null && defaultValue !== ''
@@ -42,7 +42,12 @@ export default function MontoInput({
   );
 
   return (
-    <>
+    <div className="relative">
+      {conSimbolo && (
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-ink-400">
+          ₲
+        </span>
+      )}
       <input
         type="text"
         inputMode="numeric"
@@ -50,9 +55,9 @@ export default function MontoInput({
         onChange={(e) => setDigitos(soloDigitos(e.target.value))}
         placeholder={placeholder}
         required={required}
-        className={className}
+        className={`${className ?? 'field'} amount ${conSimbolo ? 'pl-7' : ''}`}
       />
       <input type="hidden" name={name} value={digitos} />
-    </>
+    </div>
   );
 }

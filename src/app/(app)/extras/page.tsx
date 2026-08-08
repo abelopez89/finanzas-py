@@ -1,6 +1,10 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import MontoInput from '@/components/MontoInput';
+import ExtrasList from '@/components/ExtrasList';
+import NuevoPanel from '@/components/ui/NuevoPanel';
+import FiltrosPanel from '@/components/ui/FiltrosPanel';
+import { PageHeader, Section } from '@/components/ui/Layout';
 import {
   addExpenseExtra,
   addIncomeExtra,
@@ -12,19 +16,7 @@ import {
   cambiarEstadoIngreso,
 } from '@/lib/actions/entries';
 
-const ESTADO_STYLES: Record<string, string> = {
-  pendiente: 'bg-gray-100 text-gray-600',
-  rescatado: 'bg-amber-100 text-amber-700',
-  pagado: 'bg-brand-100 text-brand-700',
-  confirmado: 'bg-brand-100 text-brand-700',
-};
-
-type Filtros = {
-  q?: string;
-  estado?: string;
-  desde?: string;
-  hasta?: string;
-};
+type Filtros = { estado?: string; desde?: string; hasta?: string };
 
 export default async function ExtrasPage({ searchParams }: { searchParams: Filtros }) {
   const accountId = await getCurrentAccountId();
@@ -38,10 +30,6 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
     : null;
 
   if (gastosQuery && ingresosQuery) {
-    if (searchParams.q) {
-      gastosQuery = gastosQuery.ilike('nombre', `%${searchParams.q}%`);
-      ingresosQuery = ingresosQuery.ilike('nombre', `%${searchParams.q}%`);
-    }
     if (searchParams.estado) {
       gastosQuery = gastosQuery.eq('estado', searchParams.estado);
       ingresosQuery = ingresosQuery.eq('estado', searchParams.estado);
@@ -65,318 +53,189 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
       ])
     : [{ data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }];
 
-  const totalGastos = (gastos ?? []).reduce((a, g) => a + Number(g.monto), 0);
-  const totalIngresos = (ingresos ?? []).reduce((a, i) => a + Number(i.monto), 0);
-
-  const hayFiltros = Boolean(
-    searchParams.q || searchParams.estado || searchParams.desde || searchParams.hasta
-  );
+  const hayFiltros = Boolean(searchParams.estado || searchParams.desde || searchParams.hasta);
 
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="mb-1 text-2xl font-semibold">Extras</h1>
-        <p className="text-sm text-gray-500">
-          Gastos e ingresos puntuales que no forman parte de las plantillas mensuales.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        titulo="Extras"
+        descripcion="Gastos e ingresos puntuales, fuera de las plantillas mensuales."
+      />
 
-      {/* ------------------------- Filtros ------------------------- */}
-      <form method="GET" className="flex flex-wrap items-end gap-3 rounded-md border border-gray-200 bg-white p-4">
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">Nombre</label>
-          <input
-            name="q"
-            defaultValue={searchParams.q ?? ''}
-            placeholder="Buscar..."
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">Estado</label>
-          <select
-            name="estado"
-            defaultValue={searchParams.estado ?? ''}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="">Todos</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="rescatado">Rescatado</option>
-            <option value="pagado">Pagado</option>
-            <option value="confirmado">Confirmado</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">Desde</label>
-          <input
-            name="desde"
-            type="date"
-            defaultValue={searchParams.desde ?? ''}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">Hasta</label>
-          <input
-            name="hasta"
-            type="date"
-            defaultValue={searchParams.hasta ?? ''}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-          Filtrar
-        </button>
-        {hayFiltros && (
-          <a href="/extras" className="text-sm text-gray-400 hover:underline">
-            Limpiar filtros
-          </a>
-        )}
-      </form>
-
-      {/* ------------------------- Gastos extra ------------------------- */}
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Gastos extra</h2>
-
-        <form action={addExpenseExtra} className="mb-4 grid grid-cols-[2fr_130px_150px_150px_150px_1fr] gap-2">
-          <input
-            name="nombre"
-            placeholder="Nombre del gasto"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <MontoInput
-            name="monto"
-            placeholder="Monto ₲"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-          <input
-            name="fecha_vencimiento"
-            type="date"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <select name="payment_method_id" className="rounded-md border border-gray-300 px-2 py-2 text-sm">
-            <option value="">Método</option>
-            {(metodos ?? []).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nombre}
-              </option>
-            ))}
-          </select>
-          <select name="category_id" className="rounded-md border border-gray-300 px-2 py-2 text-sm">
-            <option value="">Categoría</option>
-            {(categorias ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-          <button className="w-fit rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-            Agregar
-          </button>
+      <FiltrosPanel hayFiltrosActivos={hayFiltros}>
+        <form method="GET" className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:items-end">
+          <div className="col-span-2 sm:col-span-1">
+            <label className="label" htmlFor="estado">
+              Estado
+            </label>
+            <select id="estado" name="estado" defaultValue={searchParams.estado ?? ''} className="field">
+              <option value="">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="rescatado">Rescatado</option>
+              <option value="pagado">Pagado</option>
+              <option value="confirmado">Confirmado</option>
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="desde">
+              Desde
+            </label>
+            <input
+              id="desde"
+              name="desde"
+              type="date"
+              defaultValue={searchParams.desde ?? ''}
+              className="field"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="hasta">
+              Hasta
+            </label>
+            <input
+              id="hasta"
+              name="hasta"
+              type="date"
+              defaultValue={searchParams.hasta ?? ''}
+              className="field"
+            />
+          </div>
+          <div className="col-span-2 flex gap-2 sm:col-span-1">
+            <button className="btn-primary flex-1">Aplicar</button>
+            {hayFiltros && (
+              <a href="/extras" className="btn-secondary">
+                Limpiar
+              </a>
+            )}
+          </div>
         </form>
+      </FiltrosPanel>
 
-        <div className="mb-2 text-right text-sm text-gray-500">
-          Total filtrado: <strong className="text-gray-800">₲ {totalGastos.toLocaleString('es-PY')}</strong>
-        </div>
+      {/* ---------------- Gastos extra ---------------- */}
+      <Section titulo="Gastos extra">
+        <NuevoPanel etiqueta="Nuevo gasto extra">
+          <form action={addExpenseExtra} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="g-nombre">
+                Nombre
+              </label>
+              <input
+                id="g-nombre"
+                name="nombre"
+                placeholder="Ej: Reparación del auto"
+                className="field"
+                required
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="g-monto">
+                Monto
+              </label>
+              <MontoInput name="monto" placeholder="0" />
+            </div>
+            <div>
+              <label className="label" htmlFor="g-venc">
+                Vencimiento
+              </label>
+              <input id="g-venc" name="fecha_vencimiento" type="date" className="field" required />
+            </div>
+            <div>
+              <label className="label" htmlFor="g-metodo">
+                Método de pago
+              </label>
+              <select id="g-metodo" name="payment_method_id" className="field">
+                <option value="">Sin método</option>
+                {(metodos ?? []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="g-cat">
+                Categoría
+              </label>
+              <select id="g-cat" name="category_id" className="field">
+                <option value="">Sin categoría</option>
+                {(categorias ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <button className="btn-primary w-full sm:w-auto">Agregar gasto</button>
+            </div>
+          </form>
+        </NuevoPanel>
 
-        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-2">Nombre</th>
-                <th className="px-4 py-2">Vencimiento / Monto</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {(gastos ?? []).map((g) => (
-                <tr key={g.id}>
-                  <td className="px-4 py-2 align-top">{g.nombre}</td>
-                  <td className="px-4 py-2 align-top">
-                    {g.estado !== 'pendiente' ? (
-                      <span className="text-gray-500">
-                        {g.fecha_vencimiento} — ₲ {Number(g.monto).toLocaleString('es-PY')}
-                      </span>
-                    ) : (
-                      <form action={updateExpenseEntry} className="flex items-center gap-2">
-                        <input type="hidden" name="id" value={g.id} />
-                        <input type="hidden" name="_path" value="/extras" />
-                        <input name="dia" type="hidden" value={g.dia} />
-                        <span className="text-xs text-gray-500">{g.fecha_vencimiento}</span>
-                        <MontoInput
-                          name="monto"
-                          defaultValue={g.monto}
-                          className="w-32 rounded-md border border-gray-300 px-2 py-1"
-                        />
-                        <button className="text-xs text-brand-600 hover:underline">Guardar</button>
-                      </form>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 align-top">
-                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_STYLES[g.estado]}`}>
-                      {g.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 align-top text-right">
-                    <div className="flex justify-end gap-2">
-                      {g.estado === 'pendiente' && (
-                        <>
-                          <form action={cambiarEstadoGasto}>
-                            <input type="hidden" name="id" value={g.id} />
-                            <input type="hidden" name="_path" value="/extras" />
-                            <input type="hidden" name="nuevo_estado" value="rescatado" />
-                            <button className="text-xs text-amber-600 hover:underline">Rescatado</button>
-                          </form>
-                          <form action={deleteExpenseExtra}>
-                            <input type="hidden" name="id" value={g.id} />
-                            <button className="text-xs text-red-400 hover:underline">Eliminar</button>
-                          </form>
-                        </>
-                      )}
-                      {g.estado !== 'pagado' && (
-                        <form action={cambiarEstadoGasto}>
-                          <input type="hidden" name="id" value={g.id} />
-                          <input type="hidden" name="_path" value="/extras" />
-                          <input type="hidden" name="nuevo_estado" value="pagado" />
-                          <button className="text-xs text-brand-600 hover:underline">Pagado</button>
-                        </form>
-                      )}
-                      {g.estado !== 'pendiente' && (
-                        <form action={cambiarEstadoGasto}>
-                          <input type="hidden" name="id" value={g.id} />
-                          <input type="hidden" name="_path" value="/extras" />
-                          <input type="hidden" name="nuevo_estado" value="pendiente" />
-                          <button className="text-xs text-gray-400 hover:underline">Revertir</button>
-                        </form>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {(gastos ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    No hay gastos extra que coincidan con los filtros.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <ExtrasList
+          tipo="gasto"
+          items={(gastos ?? []).map((g) => ({
+            id: g.id,
+            nombre: g.nombre,
+            monto: g.monto,
+            estado: g.estado,
+            fecha: g.fecha_vencimiento,
+            dia: g.dia,
+          }))}
+          cambiarEstado={cambiarEstadoGasto}
+          updateEntry={updateExpenseEntry}
+          deleteEntry={deleteExpenseExtra}
+        />
+      </Section>
 
-      {/* ------------------------- Ingresos extra ------------------------- */}
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Ingresos extra</h2>
+      {/* ---------------- Ingresos extra ---------------- */}
+      <Section titulo="Ingresos extra">
+        <NuevoPanel etiqueta="Nuevo ingreso extra">
+          <form action={addIncomeExtra} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="i-nombre">
+                Nombre
+              </label>
+              <input
+                id="i-nombre"
+                name="nombre"
+                placeholder="Ej: Aguinaldo"
+                className="field"
+                required
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="i-monto">
+                Monto
+              </label>
+              <MontoInput name="monto" placeholder="0" />
+            </div>
+            <div>
+              <label className="label" htmlFor="i-fecha">
+                Fecha
+              </label>
+              <input id="i-fecha" name="fecha_aplicacion" type="date" className="field" required />
+            </div>
+            <div className="sm:col-span-2">
+              <button className="btn-primary w-full sm:w-auto">Agregar ingreso</button>
+            </div>
+          </form>
+        </NuevoPanel>
 
-        <form action={addIncomeExtra} className="mb-4 grid grid-cols-[2fr_150px_150px_1fr] gap-2">
-          <input
-            name="nombre"
-            placeholder="Nombre del ingreso"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <MontoInput
-            name="monto"
-            placeholder="Monto ₲"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-          <input
-            name="fecha_aplicacion"
-            type="date"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <button className="w-fit rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-            Agregar
-          </button>
-        </form>
-
-        <div className="mb-2 text-right text-sm text-gray-500">
-          Total filtrado: <strong className="text-gray-800">₲ {totalIngresos.toLocaleString('es-PY')}</strong>
-        </div>
-
-        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-2">Nombre</th>
-                <th className="px-4 py-2">Fecha / Monto</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {(ingresos ?? []).map((i) => (
-                <tr key={i.id}>
-                  <td className="px-4 py-2 align-top">{i.nombre}</td>
-                  <td className="px-4 py-2 align-top">
-                    {i.estado === 'confirmado' ? (
-                      <span className="text-gray-500">
-                        {i.fecha_aplicacion} — ₲ {Number(i.monto).toLocaleString('es-PY')}
-                      </span>
-                    ) : (
-                      <form action={updateIncomeEntry} className="flex items-center gap-2">
-                        <input type="hidden" name="id" value={i.id} />
-                        <input type="hidden" name="_path" value="/extras" />
-                        <input type="hidden" name="dia" value={i.dia} />
-                        <span className="text-xs text-gray-500">{i.fecha_aplicacion}</span>
-                        <MontoInput
-                          name="monto"
-                          defaultValue={i.monto}
-                          className="w-32 rounded-md border border-gray-300 px-2 py-1"
-                        />
-                        <button className="text-xs text-brand-600 hover:underline">Guardar</button>
-                      </form>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 align-top">
-                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_STYLES[i.estado]}`}>
-                      {i.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 align-top text-right">
-                    <div className="flex justify-end gap-2">
-                      {i.estado !== 'confirmado' && (
-                        <>
-                          <form action={cambiarEstadoIngreso}>
-                            <input type="hidden" name="id" value={i.id} />
-                            <input type="hidden" name="_path" value="/extras" />
-                            <input type="hidden" name="nuevo_estado" value="confirmado" />
-                            <button className="text-xs text-brand-600 hover:underline">Confirmado</button>
-                          </form>
-                          <form action={deleteIncomeExtra}>
-                            <input type="hidden" name="id" value={i.id} />
-                            <button className="text-xs text-red-400 hover:underline">Eliminar</button>
-                          </form>
-                        </>
-                      )}
-                      {i.estado === 'confirmado' && (
-                        <form action={cambiarEstadoIngreso}>
-                          <input type="hidden" name="id" value={i.id} />
-                          <input type="hidden" name="_path" value="/extras" />
-                          <input type="hidden" name="nuevo_estado" value="pendiente" />
-                          <button className="text-xs text-gray-400 hover:underline">Revertir</button>
-                        </form>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {(ingresos ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    No hay ingresos extra que coincidan con los filtros.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <ExtrasList
+          tipo="ingreso"
+          items={(ingresos ?? []).map((i) => ({
+            id: i.id,
+            nombre: i.nombre,
+            monto: i.monto,
+            estado: i.estado,
+            fecha: i.fecha_aplicacion,
+            dia: i.dia,
+          }))}
+          cambiarEstado={cambiarEstadoIngreso}
+          updateEntry={updateIncomeEntry}
+          deleteEntry={deleteIncomeExtra}
+        />
+      </Section>
     </div>
   );
 }

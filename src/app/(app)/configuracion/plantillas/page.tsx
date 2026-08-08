@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import MontoInput from '@/components/MontoInput';
 import GastosTemplateTable from '@/components/GastosTemplateTable';
 import IngresosTemplateTable from '@/components/IngresosTemplateTable';
+import NuevoPanel from '@/components/ui/NuevoPanel';
+import { Section } from '@/components/ui/Layout';
 
 // ------------------------- Server actions: gastos -------------------------
 
@@ -123,62 +125,77 @@ export default async function PlantillasPage() {
     await Promise.all([gastosQ, ingresosQ, metodosQ, categoriasQ]);
 
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="mb-1 text-2xl font-semibold">Plantillas</h1>
-        <p className="text-sm text-gray-500">
-          Estos son los gastos e ingresos habituales de cada mes, con el día y
-          monto que normalmente se aplican. Después, desde "Mes actual" se
-          generan los movimientos reales del período, que se pueden ajustar
-          sin tocar la plantilla.
-        </p>
-      </div>
+    <div>
+      <p className="mb-6 max-w-2xl text-sm text-ink-500">
+        Los gastos e ingresos que se repiten cada mes. Al abrir un período nuevo, estos se copian
+        automáticamente a Mes actual, donde podés ajustarlos sin tocar la plantilla.
+      </p>
 
-      {/* ------------------------- Gastos ------------------------- */}
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Gastos mensuales</h2>
-
-        <form action={addExpenseTemplate} className="mb-4 grid grid-cols-[2fr_70px_130px_150px_150px_1fr] gap-2">
-          <input
-            name="nombre"
-            placeholder="Nombre (ej: Alquiler, Internet)"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <input
-            name="dia_mes"
-            type="number"
-            min={1}
-            max={31}
-            placeholder="Día"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <MontoInput
-            name="monto"
-            placeholder="Monto ₲"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-          <select name="payment_method_id" className="rounded-md border border-gray-300 px-2 py-2 text-sm">
-            <option value="">Método de pago</option>
-            {(metodos ?? []).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nombre}
-              </option>
-            ))}
-          </select>
-          <select name="category_id" className="rounded-md border border-gray-300 px-2 py-2 text-sm">
-            <option value="">Categoría</option>
-            {(categorias ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-          <button className="w-fit rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-            Agregar
-          </button>
-        </form>
+      <Section titulo="Gastos mensuales">
+        <NuevoPanel etiqueta="Nuevo gasto">
+          <form action={addExpenseTemplate} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="gt-nombre">
+                Nombre
+              </label>
+              <input
+                id="gt-nombre"
+                name="nombre"
+                placeholder="Ej: Alquiler, Internet"
+                className="field"
+                required
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="gt-dia">
+                Día del mes
+              </label>
+              <input
+                id="gt-dia"
+                name="dia_mes"
+                type="number"
+                min={1}
+                max={31}
+                placeholder="15"
+                className="field"
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Monto</label>
+              <MontoInput name="monto" placeholder="0" />
+            </div>
+            <div>
+              <label className="label" htmlFor="gt-metodo">
+                Método de pago
+              </label>
+              <select id="gt-metodo" name="payment_method_id" className="field">
+                <option value="">Sin método</option>
+                {(metodos ?? []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="gt-cat">
+                Categoría
+              </label>
+              <select id="gt-cat" name="category_id" className="field">
+                <option value="">Sin categoría</option>
+                {(categorias ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <button className="btn-primary w-full sm:w-auto">Agregar gasto</button>
+            </div>
+          </form>
+        </NuevoPanel>
 
         <GastosTemplateTable
           gastos={gastos ?? []}
@@ -187,44 +204,54 @@ export default async function PlantillasPage() {
           updateExpenseTemplate={updateExpenseTemplate}
           toggleExpenseTemplate={toggleExpenseTemplate}
         />
-      </section>
+      </Section>
 
-      {/* ------------------------- Ingresos ------------------------- */}
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Ingresos mensuales</h2>
-
-        <form action={addIncomeTemplate} className="mb-4 grid grid-cols-12 gap-2">
-          <input
-            name="nombre"
-            placeholder="Nombre (ej: Sueldo)"
-            className="col-span-6 rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <input
-            name="dia_mes"
-            type="number"
-            min={1}
-            max={31}
-            placeholder="Día"
-            className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
-            required
-          />
-          <MontoInput
-            name="monto"
-            placeholder="Monto ₲"
-            className="col-span-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-          <button className="col-span-2 rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-            Agregar
-          </button>
-        </form>
+      <Section titulo="Ingresos mensuales">
+        <NuevoPanel etiqueta="Nuevo ingreso">
+          <form action={addIncomeTemplate} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="it-nombre">
+                Nombre
+              </label>
+              <input
+                id="it-nombre"
+                name="nombre"
+                placeholder="Ej: Sueldo"
+                className="field"
+                required
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="it-dia">
+                Día del mes
+              </label>
+              <input
+                id="it-dia"
+                name="dia_mes"
+                type="number"
+                min={1}
+                max={31}
+                placeholder="30"
+                className="field"
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Monto</label>
+              <MontoInput name="monto" placeholder="0" />
+            </div>
+            <div className="sm:col-span-2">
+              <button className="btn-primary w-full sm:w-auto">Agregar ingreso</button>
+            </div>
+          </form>
+        </NuevoPanel>
 
         <IngresosTemplateTable
           ingresos={ingresos ?? []}
           updateIncomeTemplate={updateIncomeTemplate}
           toggleIncomeTemplate={toggleIncomeTemplate}
         />
-      </section>
+      </Section>
     </div>
   );
 }

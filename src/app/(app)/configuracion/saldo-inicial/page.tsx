@@ -87,55 +87,45 @@ export default async function SaldoInicialPage() {
     : { data: null };
 
   return (
-    <div>
-      {saldoInicial ? (
-        <>
-          <p className="mb-2 text-sm text-gray-500">
-            Se cargó una vez para arrancar con el saldo correcto. Podés corregirlo acá si hace falta.
-          </p>
-          <form action={updateSaldoInicial} className="flex gap-2">
-            <MontoInput
-              name="monto"
-              defaultValue={saldoInicial.monto}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              required
-            />
-            <input
-              name="fecha"
-              type="date"
-              defaultValue={saldoInicial.fecha}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              required
-            />
-            <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-              Guardar cambios
-            </button>
-          </form>
-        </>
-      ) : (
-        <>
-          <p className="mb-2 text-sm text-gray-500">
-            Se carga una única vez, para arrancar con el saldo correcto del fondo.
-          </p>
-          <form action={setSaldoInicial} className="flex gap-2">
-            <MontoInput
-              name="monto"
-              placeholder="Monto ₲"
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              required
-            />
-            <input
-              name="fecha"
-              type="date"
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              required
-            />
-            <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-              Guardar saldo inicial
-            </button>
-          </form>
-        </>
-      )}
+    <div className="max-w-lg">
+      <p className="mb-5 text-sm text-ink-500">
+        {saldoInicial
+          ? 'El punto de partida del fondo. Podés corregirlo si lo cargaste mal — el saldo se recalcula solo.'
+          : 'El saldo con el que arranca el fondo. Se carga una vez y sirve de punto de partida para todos los cálculos.'}
+      </p>
+
+      <form
+        action={saldoInicial ? updateSaldoInicial : setSaldoInicial}
+        className="card space-y-4 p-4"
+      >
+        <div>
+          <label className="label" htmlFor="monto">
+            Monto
+          </label>
+          <MontoInput
+            name="monto"
+            defaultValue={saldoInicial?.monto}
+            placeholder="0"
+            required
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="fecha">
+            Fecha
+          </label>
+          <input
+            id="fecha"
+            name="fecha"
+            type="date"
+            defaultValue={saldoInicial?.fecha}
+            className="field"
+            required
+          />
+        </div>
+        <button className="btn-primary w-full sm:w-auto">
+          {saldoInicial ? 'Guardar cambios' : 'Guardar saldo inicial'}
+        </button>
+      </form>
     </div>
   );
 }

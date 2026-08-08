@@ -1,22 +1,22 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { revalidatePath } from 'next/cache';
+import { EmptyState } from '@/components/ui/Layout';
 
 async function addRecipient(formData: FormData) {
   'use server';
   const accountId = await getCurrentAccountId();
-  if (!accountId) return;
+  if (!accountId) throw new Error('No se encontró la cuenta del usuario');
 
   const nombre = String(formData.get('nombre') ?? '').trim();
   const chatId = String(formData.get('chat_id') ?? '').trim();
   if (!nombre || !chatId) return;
 
   const supabase = createSupabaseServerClient();
-  await supabase.from('telegram_recipients').insert({
-    account_id: accountId,
-    nombre,
-    chat_id: chatId,
-  });
+  const { error } = await supabase
+    .from('telegram_recipients')
+    .insert({ account_id: accountId, nombre, chat_id: chatId });
+  if (error) throw new Error(error.message);
   revalidatePath('/configuracion/telegram');
 }
 
@@ -26,7 +26,8 @@ async function toggleRecipient(formData: FormData) {
   const activo = formData.get('activo') === 'true';
 
   const supabase = createSupabaseServerClient();
-  await supabase.from('telegram_recipients').update({ activo: !activo }).eq('id', id);
+  const { error } = await supabase.from('telegram_recipients').update({ activo: !activo }).eq('id', id);
+  if (error) throw new Error(error.message);
   revalidatePath('/configuracion/telegram');
 }
 
@@ -44,49 +45,36 @@ export default async function TelegramPage() {
 
   return (
     <div>
-      <p className="mb-4 text-sm text-gray-500">
-        El bot ya existente se reutiliza (token en variable de entorno del
-        servidor). Acá solo se configura a quién avisarle: cada persona debe
-        pasarte su <code>chat_id</code> de Telegram (se obtiene hablándole al
-        bot y consultando <code>/getUpdates</code> en la API de Telegram, o
-        con un bot como @userinfobot).
+      <p className="mb-5 text-sm text-ink-500">
+        Quién recibe el aviso diario de vencimientos. Cada persona necesita su{' '}
+        <span className="font-mono text-[13px]">chat_id</span>, que se obtiene escribiéndole a
+        @userinfobot en Telegram.
       </p>
 
-      <form action={addRecipient} className="mb-6 flex gap-2">
-        <input
-          name="nombre"
-          placeholder="Nombre"
-          className="w-1/3 rounded-md border border-gray-300 px-3 py-2 text-sm"
-          required
-        />
-        <input
-          name="chat_id"
-          placeholder="Chat ID de Telegram"
-          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-          required
-        />
-        <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
-          Agregar
-        </button>
+      <form action={addRecipient} className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <input name="nombre" placeholder="Nombre" className="field" required />
+        <input name="chat_id" placeholder="Chat ID" className="field amount" required />
+        <button className="btn-primary">Agregar</button>
       </form>
 
-      <ul className="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white">
+      <ul className="card divide-y divide-line overflow-hidden">
         {(destinatarios ?? []).map((d) => (
-          <li key={d.id} className="flex items-center justify-between px-4 py-3">
-            <span className={d.activo ? '' : 'text-gray-400 line-through'}>
-              {d.nombre} <span className="text-gray-400">({d.chat_id})</span>
-            </span>
+          <li key={d.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <p className={d.activo ? 'text-ink' : 'text-ink-400 line-through'}>{d.nombre}</p>
+              <p className="mt-0.5 font-mono text-xs text-ink-400">{d.chat_id}</p>
+            </div>
             <form action={toggleRecipient}>
               <input type="hidden" name="id" value={d.id} />
               <input type="hidden" name="activo" value={String(d.activo)} />
-              <button className="text-xs text-brand-600 hover:underline">
+              <button className="btn-row text-ink-500 hover:bg-canvas">
                 {d.activo ? 'Desactivar' : 'Activar'}
               </button>
             </form>
           </li>
         ))}
         {(destinatarios ?? []).length === 0 && (
-          <li className="px-4 py-3 text-sm text-gray-400">Todavía no hay destinatarios cargados.</li>
+          <EmptyState mensaje="Todavía no hay destinatarios configurados." />
         )}
       </ul>
     </div>

@@ -2,13 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import MontoInput from '@/components/MontoInput';
+import Money from '@/components/ui/Money';
+import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
+import SearchInput from '@/components/ui/SearchInput';
+import { EmptyState } from '@/components/ui/Layout';
 import { formatPeriodoCorto } from '@/lib/period';
-
-const ESTADO_STYLES: Record<string, string> = {
-  pendiente: 'bg-gray-100 text-gray-600',
-  rescatado: 'bg-amber-100 text-amber-700',
-  pagado: 'bg-brand-100 text-brand-700',
-};
 
 type Gasto = {
   id: string;
@@ -42,45 +40,136 @@ export default function GastosEntriesTable({
 
   const total = filtrados.reduce((a, g) => a + Number(g.monto), 0);
 
+  const periodoLabel = (p: string) => formatPeriodoCorto(new Date(`${p}T00:00:00Z`));
+
+  const Acciones = ({ g, compacto }: { g: Gasto; compacto?: boolean }) => (
+    <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
+      {g.estado === 'pendiente' && (
+        <form action={cambiarEstadoGasto}>
+          <input type="hidden" name="id" value={g.id} />
+          <input type="hidden" name="_path" value="/mes-actual" />
+          <input type="hidden" name="nuevo_estado" value="rescatado" />
+          <button className="btn-row bg-ochre-50 text-ochre-700 hover:bg-ochre-100">Rescatar</button>
+        </form>
+      )}
+      {g.estado !== 'pagado' && (
+        <form action={cambiarEstadoGasto}>
+          <input type="hidden" name="id" value={g.id} />
+          <input type="hidden" name="_path" value="/mes-actual" />
+          <input type="hidden" name="nuevo_estado" value="pagado" />
+          <button className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100">Pagar</button>
+        </form>
+      )}
+      {g.estado !== 'pendiente' && (
+        <form action={cambiarEstadoGasto}>
+          <input type="hidden" name="id" value={g.id} />
+          <input type="hidden" name="_path" value="/mes-actual" />
+          <input type="hidden" name="nuevo_estado" value="pendiente" />
+          <button className="btn-row text-ink-500 hover:bg-canvas">Revertir</button>
+        </form>
+      )}
+      {g.estado === 'pendiente' && (
+        <form action={deleteExpenseEntry}>
+          <input type="hidden" name="id" value={g.id} />
+          <input type="hidden" name="_path" value="/mes-actual" />
+          <button className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600">
+            Eliminar
+          </button>
+        </form>
+      )}
+    </div>
+  );
+
   return (
     <div>
-      <div className="mb-3 flex items-baseline justify-between gap-4">
-        <input
-          type="text"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre..."
-          className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-2 text-sm"
-        />
-        <p className="whitespace-nowrap text-sm text-gray-500">
-          Total: <strong className="text-gray-800">₲ {total.toLocaleString('es-PY')}</strong>
-        </p>
+      <div className="mb-3 flex items-center gap-3">
+        <SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar gasto…" />
+        <div className="shrink-0 text-right">
+          <p className="text-[11px] uppercase tracking-wide text-ink-400">Total</p>
+          <Money value={total} className="font-semibold text-ink" />
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+      {/* ---------- Móvil: fichas con pestaña de estado ---------- */}
+      <ul className="space-y-2 md:hidden">
+        {filtrados.map((g) => (
+          <li key={g.id} className="card flex overflow-hidden">
+            <span className={`w-1 shrink-0 ${ESTADO_BARRA[g.estado] ?? ESTADO_BARRA.pendiente}`} />
+            <div className="min-w-0 flex-1 p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ink">{g.nombre}</p>
+                  <p className="mt-0.5 text-xs text-ink-400">
+                    Día {g.dia}
+                    {mostrarPeriodo && ` · ${periodoLabel(g.periodo)}`}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <Money value={g.monto} className="font-semibold text-ink" />
+                  <div className="mt-1">
+                    <StatusPill estado={g.estado} />
+                  </div>
+                </div>
+              </div>
+
+              {g.estado === 'pendiente' && (
+                <form action={updateExpenseEntry} className="mt-3 flex items-center gap-2">
+                  <input type="hidden" name="id" value={g.id} />
+                  <input type="hidden" name="_path" value="/mes-actual" />
+                  <input
+                    name="dia"
+                    type="number"
+                    min={1}
+                    max={31}
+                    defaultValue={g.dia}
+                    aria-label="Día"
+                    className="field-sm w-16"
+                  />
+                  <MontoInput name="monto" defaultValue={g.monto} className="field-sm w-full" />
+                  <button className="btn-row shrink-0 bg-canvas text-ink-700">Guardar</button>
+                </form>
+              )}
+
+              <div className="mt-3 border-t border-line pt-2.5">
+                <Acciones g={g} compacto />
+              </div>
+            </div>
+          </li>
+        ))}
+        {filtrados.length === 0 && (
+          <li className="card">
+            <EmptyState
+              mensaje={
+                gastos.length === 0 ? 'No hay gastos para mostrar.' : 'Ningún gasto coincide.'
+              }
+            />
+          </li>
+        )}
+      </ul>
+
+      {/* ---------- Escritorio: tabla ---------- */}
+      <div className="hidden overflow-hidden rounded-card border border-line bg-surface shadow-card md:block">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-            <tr>
-              <th className="px-4 py-2">Nombre</th>
-              {mostrarPeriodo && <th className="px-4 py-2">Período</th>}
-              <th className="px-4 py-2">Día / Monto</th>
-              <th className="px-4 py-2">Estado</th>
-              <th className="px-4 py-2"></th>
+          <thead>
+            <tr className="border-b border-line bg-canvas/60 text-left text-[11px] uppercase tracking-wider text-ink-500">
+              <th className="px-4 py-2.5 font-semibold">Nombre</th>
+              {mostrarPeriodo && <th className="px-4 py-2.5 font-semibold">Período</th>}
+              <th className="px-4 py-2.5 font-semibold">Día / Monto</th>
+              <th className="px-4 py-2.5 font-semibold">Estado</th>
+              <th className="px-4 py-2.5" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-line">
             {filtrados.map((g) => (
-              <tr key={g.id}>
-                <td className="px-4 py-2 align-top">{g.nombre}</td>
+              <tr key={g.id} className="transition-colors hover:bg-canvas/50">
+                <td className="px-4 py-3 align-middle font-medium text-ink">{g.nombre}</td>
                 {mostrarPeriodo && (
-                  <td className="px-4 py-2 align-top text-gray-500">
-                    {formatPeriodoCorto(new Date(`${g.periodo}T00:00:00Z`))}
-                  </td>
+                  <td className="px-4 py-3 align-middle text-ink-500">{periodoLabel(g.periodo)}</td>
                 )}
-                <td className="px-4 py-2 align-top">
+                <td className="px-4 py-3 align-middle">
                   {g.estado !== 'pendiente' ? (
-                    <span className="text-gray-500">
-                      Día {g.dia} — ₲ {Number(g.monto).toLocaleString('es-PY')}
+                    <span className="text-ink-500">
+                      Día {g.dia} · <Money value={g.monto} className="text-ink" />
                     </span>
                   ) : (
                     <form action={updateExpenseEntry} className="flex items-center gap-2">
@@ -92,63 +181,30 @@ export default function GastosEntriesTable({
                         min={1}
                         max={31}
                         defaultValue={g.dia}
-                        className="w-16 rounded-md border border-gray-300 px-2 py-1"
+                        aria-label="Día"
+                        className="field-sm w-16"
                       />
-                      <MontoInput
-                        name="monto"
-                        defaultValue={g.monto}
-                        className="w-32 rounded-md border border-gray-300 px-2 py-1"
-                      />
-                      <button className="text-xs text-brand-600 hover:underline">Guardar</button>
+                      <MontoInput name="monto" defaultValue={g.monto} className="field-sm w-36" />
+                      <button className="btn-row text-pine-700 hover:bg-pine-50">Guardar</button>
                     </form>
                   )}
                 </td>
-                <td className="px-4 py-2 align-top">
-                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_STYLES[g.estado]}`}>
-                    {g.estado}
-                  </span>
+                <td className="px-4 py-3 align-middle">
+                  <StatusPill estado={g.estado} />
                 </td>
-                <td className="px-4 py-2 align-top text-right">
-                  <div className="flex justify-end gap-2">
-                    {g.estado === 'pendiente' && (
-                      <form action={cambiarEstadoGasto}>
-                        <input type="hidden" name="id" value={g.id} />
-                        <input type="hidden" name="_path" value="/mes-actual" />
-                        <input type="hidden" name="nuevo_estado" value="rescatado" />
-                        <button className="text-xs text-amber-600 hover:underline">Rescatado</button>
-                      </form>
-                    )}
-                    {g.estado !== 'pagado' && (
-                      <form action={cambiarEstadoGasto}>
-                        <input type="hidden" name="id" value={g.id} />
-                        <input type="hidden" name="_path" value="/mes-actual" />
-                        <input type="hidden" name="nuevo_estado" value="pagado" />
-                        <button className="text-xs text-brand-600 hover:underline">Pagado</button>
-                      </form>
-                    )}
-                    {g.estado !== 'pendiente' && (
-                      <form action={cambiarEstadoGasto}>
-                        <input type="hidden" name="id" value={g.id} />
-                        <input type="hidden" name="_path" value="/mes-actual" />
-                        <input type="hidden" name="nuevo_estado" value="pendiente" />
-                        <button className="text-xs text-gray-400 hover:underline">Revertir</button>
-                      </form>
-                    )}
-                    {g.estado === 'pendiente' && (
-                      <form action={deleteExpenseEntry}>
-                        <input type="hidden" name="id" value={g.id} />
-                        <input type="hidden" name="_path" value="/mes-actual" />
-                        <button className="text-xs text-red-400 hover:underline">Eliminar</button>
-                      </form>
-                    )}
-                  </div>
+                <td className="px-4 py-3 align-middle">
+                  <Acciones g={g} />
                 </td>
               </tr>
             ))}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={mostrarPeriodo ? 5 : 4} className="px-4 py-3 text-sm text-gray-400">
-                  {gastos.length === 0 ? 'No hay gastos para mostrar.' : 'Ningún gasto coincide con la búsqueda.'}
+                <td colSpan={mostrarPeriodo ? 5 : 4}>
+                  <EmptyState
+                    mensaje={
+                      gastos.length === 0 ? 'No hay gastos para mostrar.' : 'Ningún gasto coincide.'
+                    }
+                  />
                 </td>
               </tr>
             )}
