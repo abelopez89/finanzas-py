@@ -15,6 +15,7 @@ type Gasto = {
   monto: number;
   estado: string;
   periodo: string;
+  payment_methods?: { nombre: string } | null;
 };
 
 /** Vencido = fecha pasada y todavía sin pagar. */
@@ -158,6 +159,7 @@ export default function GastosEntriesTable({
                   <p className="truncate font-medium text-ink">{g.nombre}</p>
                   <p className="mt-0.5 text-xs text-ink-400">
                     Día {g.dia}
+                    {g.payment_methods?.nombre && ` · ${g.payment_methods.nombre}`}
                     {mostrarPeriodo && ` · ${periodoLabel(g.periodo)}`}
                   </p>
                   {(vencido(g) || porVencer(g)) && (
@@ -215,6 +217,7 @@ export default function GastosEntriesTable({
           <thead>
             <tr className="border-b border-line bg-canvas/60 text-left text-[11px] uppercase tracking-wider text-ink-500">
               <th className="px-4 py-2.5 font-semibold">Nombre</th>
+              <th className="px-4 py-2.5 font-semibold">Método</th>
               {mostrarPeriodo && <th className="px-4 py-2.5 font-semibold">Período</th>}
               <th className="px-4 py-2.5 font-semibold">Día / Monto</th>
               <th className="px-4 py-2.5 font-semibold">Estado</th>
@@ -242,6 +245,9 @@ export default function GastosEntriesTable({
                     ) : null}
                     {g.nombre}
                   </span>
+                </td>
+                <td className="px-4 py-3 align-middle text-ink-500">
+                  {g.payment_methods?.nombre ?? '—'}
                 </td>
                 {mostrarPeriodo && (
                   <td className="px-4 py-3 align-middle text-ink-500">{periodoLabel(g.periodo)}</td>
@@ -285,7 +291,7 @@ export default function GastosEntriesTable({
             ))}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={mostrarPeriodo ? 5 : 4}>
+                <td colSpan={mostrarPeriodo ? 6 : 5}>
                   <EmptyState
                     mensaje={
                       gastos.length === 0 ? 'No hay gastos para mostrar.' : 'Ningún gasto coincide.'

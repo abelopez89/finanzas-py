@@ -3,6 +3,7 @@ import { getCurrentAccountId } from '@/lib/supabase/account';
 import MontoInput from '@/components/MontoInput';
 import ExtrasList from '@/components/ExtrasList';
 import NuevoPanel from '@/components/ui/NuevoPanel';
+import FormularioAlta from '@/components/ui/FormularioAlta';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
 import { PageHeader, Section } from '@/components/ui/Layout';
 import {
@@ -57,11 +58,12 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
       ])
     : [{ data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }];
 
-  // Orden: por fecha (más reciente primero) y después por método de pago.
+  // Orden: por fecha ascendente (lo que vence primero, arriba), después
+  // por método de pago y por nombre. Los que no tienen fecha van al final.
   const gastosOrdenados = [...(gastos ?? [])].sort((a, b) => {
-    const fa = a.fecha_vencimiento ?? '';
-    const fb = b.fecha_vencimiento ?? '';
-    if (fa !== fb) return fb.localeCompare(fa);
+    const fa = a.fecha_vencimiento ?? '9999-12-31';
+    const fb = b.fecha_vencimiento ?? '9999-12-31';
+    if (fa !== fb) return fa.localeCompare(fb);
     const mA = (a as any).payment_methods?.nombre ?? '';
     const mB = (b as any).payment_methods?.nombre ?? '';
     const porMetodo = mA.localeCompare(mB, 'es');
@@ -70,9 +72,9 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
   });
 
   const ingresosOrdenados = [...(ingresos ?? [])].sort((a, b) => {
-    const fa = a.fecha_aplicacion ?? '';
-    const fb = b.fecha_aplicacion ?? '';
-    if (fa !== fb) return fb.localeCompare(fa);
+    const fa = a.fecha_aplicacion ?? '9999-12-31';
+    const fb = b.fecha_aplicacion ?? '9999-12-31';
+    if (fa !== fb) return fa.localeCompare(fb);
     return a.nombre.localeCompare(b.nombre, 'es');
   });
 
@@ -137,7 +139,7 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
       {/* ---------------- Gastos extra ---------------- */}
       <Section titulo="Gastos extra">
         <NuevoPanel etiqueta="Nuevo gasto extra">
-          <form action={addExpenseExtra} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormularioAlta action={addExpenseExtra} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="g-nombre">
                 Nombre
@@ -191,7 +193,7 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
             <div className="sm:col-span-2">
               <button className="btn-primary w-full sm:w-auto">Agregar gasto</button>
             </div>
-          </form>
+          </FormularioAlta>
         </NuevoPanel>
 
         <ExtrasList
@@ -215,7 +217,7 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
       {/* ---------------- Ingresos extra ---------------- */}
       <Section titulo="Ingresos extra">
         <NuevoPanel etiqueta="Nuevo ingreso extra">
-          <form action={addIncomeExtra} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormularioAlta action={addIncomeExtra} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="i-nombre">
                 Nombre
@@ -243,7 +245,7 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
             <div className="sm:col-span-2">
               <button className="btn-primary w-full sm:w-auto">Agregar ingreso</button>
             </div>
-          </form>
+          </FormularioAlta>
         </NuevoPanel>
 
         <ExtrasList

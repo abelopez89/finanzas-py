@@ -1,4 +1,5 @@
 import { Aviso, EmptyState } from '@/components/ui/Layout';
+import FormularioAlta from '@/components/ui/FormularioAlta';
 
 type Item = { id: string; nombre: string; activo: boolean };
 
@@ -41,10 +42,10 @@ export default function ConfigListaSimple({
         </div>
       )}
 
-      <form action={onAdd} className="mb-5 flex flex-col gap-2 sm:flex-row">
+      <FormularioAlta action={onAdd} className="mb-5 flex flex-col gap-2 sm:flex-row">
         <input name="nombre" placeholder={placeholder} className="field flex-1" required />
         <button className="btn-primary sm:w-auto">Agregar</button>
-      </form>
+      </FormularioAlta>
 
       <ul className="card divide-y divide-line overflow-hidden">
         {items.map((item) => (

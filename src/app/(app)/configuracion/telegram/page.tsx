@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { revalidatePath } from 'next/cache';
 import { EmptyState } from '@/components/ui/Layout';
+import FormularioAlta from '@/components/ui/FormularioAlta';
 
 async function addRecipient(formData: FormData) {
   'use server';
@@ -51,11 +52,14 @@ export default async function TelegramPage() {
         @userinfobot en Telegram.
       </p>
 
-      <form action={addRecipient} className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+      <FormularioAlta
+        action={addRecipient}
+        className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]"
+      >
         <input name="nombre" placeholder="Nombre" className="field" required />
         <input name="chat_id" placeholder="Chat ID" className="field amount" required />
         <button className="btn-primary">Agregar</button>
-      </form>
+      </FormularioAlta>
 
       <ul className="card divide-y divide-line overflow-hidden">
         {(destinatarios ?? []).map((d) => (

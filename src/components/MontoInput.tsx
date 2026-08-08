@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 interface MontoInputProps {
   name: string;
@@ -35,11 +35,23 @@ export default function MontoInput({
   className,
   conSimbolo = true,
 }: MontoInputProps) {
-  const [digitos, setDigitos] = useState(() =>
+  const valorInicial =
     defaultValue !== undefined && defaultValue !== null && defaultValue !== ''
       ? soloDigitos(String(Math.round(Number(defaultValue))))
-      : ''
-  );
+      : '';
+
+  const [digitos, setDigitos] = useState(valorInicial);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Como el valor vive en estado de React, form.reset() no lo limpiaría
+  // solo: hay que escuchar el evento y volver al valor inicial a mano.
+  useEffect(() => {
+    const form = inputRef.current?.form;
+    if (!form) return;
+    const alResetear = () => setDigitos(valorInicial);
+    form.addEventListener('reset', alResetear);
+    return () => form.removeEventListener('reset', alResetear);
+  }, [valorInicial]);
 
   return (
     <div className="relative">
@@ -49,6 +61,7 @@ export default function MontoInput({
         </span>
       )}
       <input
+        ref={inputRef}
         type="text"
         inputMode="numeric"
         value={formatearConMiles(digitos)}

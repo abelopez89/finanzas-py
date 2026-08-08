@@ -5,6 +5,7 @@ import MontoInput from '@/components/MontoInput';
 import GastosTemplateTable from '@/components/GastosTemplateTable';
 import IngresosTemplateTable from '@/components/IngresosTemplateTable';
 import NuevoPanel from '@/components/ui/NuevoPanel';
+import FormularioAlta from '@/components/ui/FormularioAlta';
 import { Section } from '@/components/ui/Layout';
 
 // ------------------------- Server actions: gastos -------------------------
@@ -133,7 +134,7 @@ export default async function PlantillasPage() {
 
       <Section titulo="Gastos mensuales">
         <NuevoPanel etiqueta="Nuevo gasto">
-          <form action={addExpenseTemplate} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormularioAlta action={addExpenseTemplate} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="gt-nombre">
                 Nombre
@@ -194,7 +195,7 @@ export default async function PlantillasPage() {
             <div className="sm:col-span-2">
               <button className="btn-primary w-full sm:w-auto">Agregar gasto</button>
             </div>
-          </form>
+          </FormularioAlta>
         </NuevoPanel>
 
         <GastosTemplateTable
@@ -208,7 +209,7 @@ export default async function PlantillasPage() {
 
       <Section titulo="Ingresos mensuales">
         <NuevoPanel etiqueta="Nuevo ingreso">
-          <form action={addIncomeTemplate} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormularioAlta action={addIncomeTemplate} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="it-nombre">
                 Nombre
@@ -243,7 +244,7 @@ export default async function PlantillasPage() {
             <div className="sm:col-span-2">
               <button className="btn-primary w-full sm:w-auto">Agregar ingreso</button>
             </div>
-          </form>
+          </FormularioAlta>
         </NuevoPanel>
 
         <IngresosTemplateTable
