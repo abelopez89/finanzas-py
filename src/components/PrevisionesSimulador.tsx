@@ -31,9 +31,14 @@ type Simulacion = {
 export default function PrevisionesSimulador({
   filas,
   saldoInicialProyeccion,
+  saldoHoy,
 }: {
   filas: FilaPrevision[];
+  /** Saldo proyectado al cierre del período vigente (punto de arranque). */
   saldoInicialProyeccion: number;
+  /** Saldo real del fondo hoy, ya con saldo inicial, ingresos confirmados,
+   *  rescates e intereses aplicados. */
+  saldoHoy: number;
 }) {
   const [simulaciones, setSimulaciones] = useState<Simulacion[]>([]);
   const [nombre, setNombre] = useState('');
@@ -166,7 +171,7 @@ export default function PrevisionesSimulador({
               >
                 {filas.map((f, idx) => (
                   <option key={f.periodoISO} value={f.periodoISO}>
-                    {idx === 0 ? 'Actual' : f.label}
+                    {idx === 0 ? 'Este período' : f.label}
                   </option>
                 ))}
               </select>
@@ -257,16 +262,32 @@ export default function PrevisionesSimulador({
       {/* ---------------- Detalle ---------------- */}
       <Section titulo="Detalle por período">
         <ul className="space-y-2 md:hidden">
+          <li className="card border-ink-300 bg-canvas p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-medium text-ink">Saldo del fondo hoy</p>
+                <p className="mt-0.5 text-xs text-ink-400">Punto de partida del cálculo</p>
+              </div>
+              <Money value={saldoHoy} className="font-semibold text-ink" />
+            </div>
+          </li>
           {proyeccion.map((f, idx) => (
             <li
               key={f.periodoISO}
               className={`card p-4 ${f.saldo < 0 ? 'border-brick-100 bg-brick-50/40' : ''}`}
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-ink">{idx === 0 ? 'Actual' : f.label}</span>
-                  {f.tieneExtra && <Etiqueta tono="ochre">extra</Etiqueta>}
-                  {f.tieneSimulacion && <Etiqueta tono="ink">simulado</Etiqueta>}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-ink">
+                      {idx === 0 ? 'Resto del período' : f.label}
+                    </span>
+                    {f.tieneExtra && <Etiqueta tono="ochre">extra</Etiqueta>}
+                    {f.tieneSimulacion && <Etiqueta tono="ink">simulado</Etiqueta>}
+                  </div>
+                  {idx === 0 && (
+                    <p className="mt-0.5 text-xs text-ink-400">Solo lo que falta aplicar</p>
+                  )}
                 </div>
                 <Money
                   value={f.saldo}
@@ -296,6 +317,17 @@ export default function PrevisionesSimulador({
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
+              <tr className="bg-canvas/70">
+                <td className="px-4 py-3">
+                  <span className="font-medium text-ink">Saldo del fondo hoy</span>
+                  <span className="ml-2 text-xs text-ink-400">punto de partida</span>
+                </td>
+                <td className="px-4 py-3" />
+                <td className="px-4 py-3" />
+                <td className="px-4 py-3 text-right">
+                  <Money value={saldoHoy} className="font-semibold text-ink" />
+                </td>
+              </tr>
               {proyeccion.map((f, idx) => (
                 <tr
                   key={f.periodoISO}
@@ -303,8 +335,11 @@ export default function PrevisionesSimulador({
                 >
                   <td className="px-4 py-3">
                     <span className="mr-2 font-medium text-ink">
-                      {idx === 0 ? 'Actual' : f.label}
+                      {idx === 0 ? 'Resto del período' : f.label}
                     </span>
+                    {idx === 0 && (
+                      <span className="mr-2 text-xs text-ink-400">solo lo que falta aplicar</span>
+                    )}
                     {f.tieneExtra && <Etiqueta tono="ochre">extra</Etiqueta>}
                     {f.tieneSimulacion && <Etiqueta tono="ink">simulado</Etiqueta>}
                   </td>
@@ -327,10 +362,21 @@ export default function PrevisionesSimulador({
         </div>
       </Section>
 
-      <p className="text-xs text-ink-400">
-        Para que un gasto puntual quede guardado y afecte la previsión de forma permanente, cargalo
-        en Extras con su fecha.
-      </p>
+      <div className="space-y-1 text-xs text-ink-400">
+        <p>
+          <strong className="font-medium text-ink-500">Cómo leerla:</strong> el saldo de hoy ya
+          incluye el saldo inicial, los ingresos confirmados, los rescates hechos y los intereses.
+          La fila del período vigente descuenta solo lo que todavía falta rescatar o cobrar, por eso
+          puede mostrar ingresos en cero si ya los confirmaste todos.
+        </p>
+        <p>
+          Los períodos siguientes sí son totales completos, proyectados desde las plantillas activas.
+        </p>
+        <p>
+          Para que un gasto puntual quede guardado y afecte la previsión de forma permanente, cargalo
+          en Extras con su fecha.
+        </p>
+      </div>
     </div>
   );
 }

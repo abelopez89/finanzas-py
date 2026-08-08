@@ -118,7 +118,11 @@ export default async function PrevisionesPage() {
         titulo="Previsiones"
         descripcion="Proyección a 12 períodos, asumiendo que las plantillas activas se repiten. Incluye los extras cargados con fecha futura."
       />
-      <PrevisionesSimulador filas={filas} saldoInicialProyeccion={saldoFinPeriodoActual} />
+      <PrevisionesSimulador
+        filas={filas}
+        saldoInicialProyeccion={saldoFinPeriodoActual}
+        saldoHoy={saldoActual}
+      />
     </div>
   );
 }
