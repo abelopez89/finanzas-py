@@ -39,30 +39,3 @@ export async function linkAdditionalEmail(
   });
   if (error) throw error;
 }
-
-/**
- * Registra en la cuenta familiar TODOS los correos de las identidades
- * vinculadas al usuario autenticado.
- *
- * Hace falta porque `linkIdentity` suma la identidad al mismo usuario de
- * Supabase, pero `user.email` sigue siendo el correo principal: el segundo
- * Gmail solo aparece dentro de `user.identities`. Sin recorrerlas, el
- * correo nuevo nunca quedaría registrado.
- */
-export async function syncIdentidadesDelUsuario(supabase: SupabaseClient) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
-
-  const correos = new Set<string>();
-  if (user.email) correos.add(user.email);
-  for (const identidad of user.identities ?? []) {
-    const email = (identidad.identity_data as { email?: string } | null)?.email;
-    if (email) correos.add(email);
-  }
-
-  for (const email of correos) {
-    await linkAdditionalEmail(supabase, email);
-  }
-}
