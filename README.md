@@ -54,6 +54,14 @@ mensuales, control del fondo mutuo y previsiones a 12 meses.
 - **Buscador en vivo en Plantillas**: las tablas de gastos e ingresos mensuales ahora filtran mientras se escribe, sin recargar la página (se extrajo la lógica a componentes cliente `GastosTemplateTable` e `IngresosTemplateTable`).
 - **Menú reordenado**: Dashboard, Mes actual, Extras, Fondo mutuo, Movimientos, Plantillas, Previsiones, Configuración.
 
+**Reorganización mayor (post-Etapa 4, ronda 2):**
+- **Buscador en vivo en Mes Actual**: igual que en Plantillas, ahora las tablas de gastos e ingresos del período filtran por nombre al instante. Los filtros de estado y rango de día siguen siendo por botón (consultan la base directamente).
+- **Pendientes de meses anteriores visibles en Mes Actual**: si arrancó un período nuevo y quedó algo sin resolver del anterior (por ejemplo, un gasto que nunca se rescató), ahora aparece en una sección aparte arriba de todo, con la misma posibilidad de editar/cambiar estado/eliminar — no hace falta ninguna pantalla adicional para encontrarlo.
+- **Fondo mutuo y Movimientos se fusionaron**: `/movimientos` ya no existe como pantalla separada; todo su contenido (filtros, totales, descarga Excel) ahora vive dentro de `/fondo`, debajo del saldo actual y del registro de saldo del fondo. Además, la lista de movimientos ahora también incluye los intereses y el saldo inicial (antes esos solo se veían en la sección vieja de "últimos movimientos" del fondo, separados de gastos/ingresos).
+- **Saldo inicial trasladado a Configuración**: la carga/edición del saldo inicial del fondo ahora es una pestaña más dentro de Configuración, no una sección de la pantalla de Fondo.
+- **Plantillas trasladado a Configuración**: ya no es un ítem del menú principal — ahora es la primera pestaña dentro de Configuración (`/configuracion/plantillas`).
+- **Menú final**: Dashboard, Mes actual, Extras, Fondo mutuo, Previsiones, Configuración (con pestañas: Plantillas, Métodos de pago, Categorías, Saldo inicial, Telegram).
+
 **Próximas etapas:**
 5. Lógica completa de notificaciones diarias por Telegram
 

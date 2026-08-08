@@ -28,7 +28,7 @@ async function addExpenseTemplate(formData: FormData) {
     payment_method_id,
     category_id,
   });
-  revalidatePath('/plantillas');
+  revalidatePath('/configuracion/plantillas');
 }
 
 async function updateExpenseTemplate(formData: FormData) {
@@ -44,7 +44,7 @@ async function updateExpenseTemplate(formData: FormData) {
     .from('expense_templates')
     .update({ dia_mes, monto, payment_method_id, category_id })
     .eq('id', id);
-  revalidatePath('/plantillas');
+  revalidatePath('/configuracion/plantillas');
 }
 
 async function toggleExpenseTemplate(formData: FormData) {
@@ -54,7 +54,7 @@ async function toggleExpenseTemplate(formData: FormData) {
 
   const supabase = createSupabaseServerClient();
   await supabase.from('expense_templates').update({ activo: !activo }).eq('id', id);
-  revalidatePath('/plantillas');
+  revalidatePath('/configuracion/plantillas');
 }
 
 // ------------------------- Server actions: ingresos ------------------------
@@ -76,7 +76,7 @@ async function addIncomeTemplate(formData: FormData) {
     dia_mes,
     monto,
   });
-  revalidatePath('/plantillas');
+  revalidatePath('/configuracion/plantillas');
 }
 
 async function updateIncomeTemplate(formData: FormData) {
@@ -87,7 +87,7 @@ async function updateIncomeTemplate(formData: FormData) {
 
   const supabase = createSupabaseServerClient();
   await supabase.from('income_templates').update({ dia_mes, monto }).eq('id', id);
-  revalidatePath('/plantillas');
+  revalidatePath('/configuracion/plantillas');
 }
 
 async function toggleIncomeTemplate(formData: FormData) {
@@ -97,7 +97,7 @@ async function toggleIncomeTemplate(formData: FormData) {
 
   const supabase = createSupabaseServerClient();
   await supabase.from('income_templates').update({ activo: !activo }).eq('id', id);
-  revalidatePath('/plantillas');
+  revalidatePath('/configuracion/plantillas');
 }
 
 // ------------------------------- Página -------------------------------

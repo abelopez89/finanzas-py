@@ -11,21 +11,34 @@ import {
   deleteExpenseEntry,
   deleteIncomeEntry,
 } from '@/lib/actions/entries';
-import MontoInput from '@/components/MontoInput';
-
-const ESTADO_STYLES: Record<string, string> = {
-  pendiente: 'bg-gray-100 text-gray-600',
-  rescatado: 'bg-amber-100 text-amber-700',
-  pagado: 'bg-brand-100 text-brand-700',
-  confirmado: 'bg-brand-100 text-brand-700',
-};
+import GastosEntriesTable from '@/components/GastosEntriesTable';
+import IngresosEntriesTable from '@/components/IngresosEntriesTable';
 
 type Filtros = {
-  q?: string;
   estado?: string;
   dia_desde?: string;
   dia_hasta?: string;
 };
+
+function ordenarGastos(gastos: any[]) {
+  return [...gastos].sort((a, b) => {
+    const porDia = ordenDiaPeriodo(a.dia) - ordenDiaPeriodo(b.dia);
+    if (porDia !== 0) return porDia;
+    const metodoA = a.payment_methods?.nombre ?? '';
+    const metodoB = b.payment_methods?.nombre ?? '';
+    const porMetodo = metodoA.localeCompare(metodoB, 'es');
+    if (porMetodo !== 0) return porMetodo;
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
+}
+
+function ordenarIngresos(ingresos: any[]) {
+  return [...ingresos].sort((a, b) => {
+    const porDia = ordenDiaPeriodo(a.dia) - ordenDiaPeriodo(b.dia);
+    if (porDia !== 0) return porDia;
+    return a.nombre.localeCompare(b.nombre, 'es');
+  });
+}
 
 export default async function MesActualPage({ searchParams }: { searchParams: Filtros }) {
   const accountId = await getCurrentAccountId();
@@ -34,8 +47,7 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
   const periodo = toISODate(inicio);
 
   // Auto-generación: si es la primera vez que se entra a un período nuevo,
-  // los movimientos de las plantillas activas se crean solos. El botón de
-  // abajo sigue disponible por si aparecen plantillas nuevas más tarde.
+  // los movimientos de las plantillas activas se crean solos.
   if (accountId) {
     await generarMovimientosParaPeriodo(accountId, periodo);
   }
@@ -61,10 +73,6 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     : null;
 
   if (gastosQuery && ingresosQuery) {
-    if (searchParams.q) {
-      gastosQuery = gastosQuery.ilike('nombre', `%${searchParams.q}%`);
-      ingresosQuery = ingresosQuery.ilike('nombre', `%${searchParams.q}%`);
-    }
     if (searchParams.estado) {
       gastosQuery = gastosQuery.eq('estado', searchParams.estado);
       ingresosQuery = ingresosQuery.eq('estado', searchParams.estado);
@@ -79,33 +87,35 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     }
   }
 
-  const [{ data: gastosRaw }, { data: ingresosRaw }] =
-    gastosQuery && ingresosQuery
-      ? await Promise.all([gastosQuery, ingresosQuery])
-      : [{ data: [] as any[] }, { data: [] as any[] }];
+  const [{ data: gastosRaw }, { data: ingresosRaw }, { data: gastosAnterioresRaw }, { data: ingresosAnterioresRaw }] =
+    accountId
+      ? await Promise.all([
+          gastosQuery!,
+          ingresosQuery!,
+          supabase
+            .from('expense_entries')
+            .select('*, payment_methods(nombre)')
+            .eq('account_id', accountId)
+            .eq('es_extra', false)
+            .neq('estado', 'pagado')
+            .lt('periodo', periodo),
+          supabase
+            .from('income_entries')
+            .select('*')
+            .eq('account_id', accountId)
+            .eq('es_extra', false)
+            .neq('estado', 'confirmado')
+            .lt('periodo', periodo),
+        ])
+      : [{ data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }];
 
-  // Orden: día del período (27→26), después método de pago, después nombre.
-  const gastos = [...(gastosRaw ?? [])].sort((a, b) => {
-    const porDia = ordenDiaPeriodo(a.dia) - ordenDiaPeriodo(b.dia);
-    if (porDia !== 0) return porDia;
-    const metodoA = (a as any).payment_methods?.nombre ?? '';
-    const metodoB = (b as any).payment_methods?.nombre ?? '';
-    const porMetodo = metodoA.localeCompare(metodoB, 'es');
-    if (porMetodo !== 0) return porMetodo;
-    return a.nombre.localeCompare(b.nombre, 'es');
-  });
-  const ingresos = [...(ingresosRaw ?? [])].sort((a, b) => {
-    const porDia = ordenDiaPeriodo(a.dia) - ordenDiaPeriodo(b.dia);
-    if (porDia !== 0) return porDia;
-    return a.nombre.localeCompare(b.nombre, 'es');
-  });
+  const gastos = ordenarGastos(gastosRaw ?? []);
+  const ingresos = ordenarIngresos(ingresosRaw ?? []);
+  const gastosAnteriores = ordenarGastos(gastosAnterioresRaw ?? []);
+  const ingresosAnteriores = ordenarIngresos(ingresosAnterioresRaw ?? []);
 
-  const totalGastos = (gastos ?? []).reduce((a, g) => a + Number(g.monto), 0);
-  const totalIngresos = (ingresos ?? []).reduce((a, i) => a + Number(i.monto), 0);
-
-  const hayFiltros = Boolean(
-    searchParams.q || searchParams.estado || searchParams.dia_desde || searchParams.dia_hasta
-  );
+  const hayFiltros = Boolean(searchParams.estado || searchParams.dia_desde || searchParams.dia_hasta);
+  const hayPendientesAnteriores = gastosAnteriores.length > 0 || ingresosAnteriores.length > 0;
 
   return (
     <div className="space-y-10">
@@ -115,6 +125,39 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
           Período vigente: <strong>{formatPeriodoLabel(inicio)}</strong>
         </p>
       </div>
+
+      {hayPendientesAnteriores && (
+        <section>
+          <div className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            ⚠️ Tenés movimientos sin resolver de períodos anteriores — se quedaron pendientes cuando
+            arrancó el período vigente. Podés aplicarlos acá mismo, no hace falta volver atrás.
+          </div>
+          {gastosAnteriores.length > 0 && (
+            <div className="mb-6">
+              <h2 className="mb-3 text-lg font-medium">Gastos pendientes de meses anteriores</h2>
+              <GastosEntriesTable
+                gastos={gastosAnteriores}
+                mostrarPeriodo
+                updateExpenseEntry={updateExpenseEntry}
+                cambiarEstadoGasto={cambiarEstadoGasto}
+                deleteExpenseEntry={deleteExpenseEntry}
+              />
+            </div>
+          )}
+          {ingresosAnteriores.length > 0 && (
+            <div>
+              <h2 className="mb-3 text-lg font-medium">Ingresos pendientes de meses anteriores</h2>
+              <IngresosEntriesTable
+                ingresos={ingresosAnteriores}
+                mostrarPeriodo
+                updateIncomeEntry={updateIncomeEntry}
+                cambiarEstadoIngreso={cambiarEstadoIngreso}
+                deleteIncomeEntry={deleteIncomeEntry}
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       <form action={generarMovimientosDelMes}>
         <button className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">
@@ -126,17 +169,8 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
         </p>
       </form>
 
-      {/* ------------------------- Filtros ------------------------- */}
+      {/* ------------------------- Filtros (estado / día) ------------------------- */}
       <form method="GET" className="flex flex-wrap items-end gap-3 rounded-md border border-gray-200 bg-white p-4">
-        <div>
-          <label className="mb-1 block text-xs text-gray-500">Nombre</label>
-          <input
-            name="q"
-            defaultValue={searchParams.q ?? ''}
-            placeholder="Buscar..."
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          />
-        </div>
         <div>
           <label className="mb-1 block text-xs text-gray-500">Estado</label>
           <select
@@ -181,207 +215,31 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
             Limpiar filtros
           </a>
         )}
+        <p className="ml-auto text-xs text-gray-400">
+          El buscador por nombre está en cada tabla de abajo — filtra al instante.
+        </p>
       </form>
 
       {/* ------------------------- Gastos del período ------------------------- */}
       <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-lg font-medium">Gastos</h2>
-          <p className="text-sm text-gray-500">
-            Total filtrado: <strong className="text-gray-800">₲ {totalGastos.toLocaleString('es-PY')}</strong>
-          </p>
-        </div>
-        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-2">Nombre</th>
-                <th className="px-4 py-2">Día / Monto</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {(gastos ?? []).map((g) => (
-                <tr key={g.id}>
-                  <td className="px-4 py-2 align-top">{g.nombre}</td>
-                  <td className="px-4 py-2 align-top">
-                    {g.estado !== 'pendiente' ? (
-                      <span className="text-gray-500">
-                        Día {g.dia} — ₲ {Number(g.monto).toLocaleString('es-PY')}
-                      </span>
-                    ) : (
-                      <form action={updateExpenseEntry} className="flex items-center gap-2">
-                        <input type="hidden" name="id" value={g.id} />
-                        <input type="hidden" name="_path" value="/mes-actual" />
-                        <input
-                          name="dia"
-                          type="number"
-                          min={1}
-                          max={31}
-                          defaultValue={g.dia}
-                          className="w-16 rounded-md border border-gray-300 px-2 py-1"
-                        />
-                        <MontoInput
-                          name="monto"
-                          defaultValue={g.monto}
-                          className="w-32 rounded-md border border-gray-300 px-2 py-1"
-                        />
-                        <button className="text-xs text-brand-600 hover:underline">Guardar</button>
-                      </form>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 align-top">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_STYLES[g.estado]}`}
-                    >
-                      {g.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 align-top text-right">
-                    <div className="flex justify-end gap-2">
-                      {g.estado === 'pendiente' && (
-                        <form action={cambiarEstadoGasto}>
-                          <input type="hidden" name="id" value={g.id} />
-                          <input type="hidden" name="_path" value="/mes-actual" />
-                          <input type="hidden" name="nuevo_estado" value="rescatado" />
-                          <button className="text-xs text-amber-600 hover:underline">Rescatado</button>
-                        </form>
-                      )}
-                      {g.estado !== 'pagado' && (
-                        <form action={cambiarEstadoGasto}>
-                          <input type="hidden" name="id" value={g.id} />
-                          <input type="hidden" name="_path" value="/mes-actual" />
-                          <input type="hidden" name="nuevo_estado" value="pagado" />
-                          <button className="text-xs text-brand-600 hover:underline">Pagado</button>
-                        </form>
-                      )}
-                      {g.estado !== 'pendiente' && (
-                        <form action={cambiarEstadoGasto}>
-                          <input type="hidden" name="id" value={g.id} />
-                          <input type="hidden" name="_path" value="/mes-actual" />
-                          <input type="hidden" name="nuevo_estado" value="pendiente" />
-                          <button className="text-xs text-gray-400 hover:underline">Revertir</button>
-                        </form>
-                      )}
-                      {g.estado === 'pendiente' && (
-                        <form action={deleteExpenseEntry}>
-                          <input type="hidden" name="id" value={g.id} />
-                          <input type="hidden" name="_path" value="/mes-actual" />
-                          <button className="text-xs text-red-400 hover:underline">Eliminar</button>
-                        </form>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {(gastos ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    No hay gastos que coincidan con los filtros.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <h2 className="mb-3 text-lg font-medium">Gastos</h2>
+        <GastosEntriesTable
+          gastos={gastos}
+          updateExpenseEntry={updateExpenseEntry}
+          cambiarEstadoGasto={cambiarEstadoGasto}
+          deleteExpenseEntry={deleteExpenseEntry}
+        />
       </section>
 
       {/* ------------------------- Ingresos del período ------------------------- */}
       <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="text-lg font-medium">Ingresos</h2>
-          <p className="text-sm text-gray-500">
-            Total filtrado:{' '}
-            <strong className="text-gray-800">₲ {totalIngresos.toLocaleString('es-PY')}</strong>
-          </p>
-        </div>
-        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-2">Nombre</th>
-                <th className="px-4 py-2">Día / Monto</th>
-                <th className="px-4 py-2">Estado</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {(ingresos ?? []).map((i) => (
-                <tr key={i.id}>
-                  <td className="px-4 py-2 align-top">{i.nombre}</td>
-                  <td className="px-4 py-2 align-top">
-                    {i.estado === 'confirmado' ? (
-                      <span className="text-gray-500">
-                        Día {i.dia} — ₲ {Number(i.monto).toLocaleString('es-PY')}
-                      </span>
-                    ) : (
-                      <form action={updateIncomeEntry} className="flex items-center gap-2">
-                        <input type="hidden" name="id" value={i.id} />
-                        <input type="hidden" name="_path" value="/mes-actual" />
-                        <input
-                          name="dia"
-                          type="number"
-                          min={1}
-                          max={31}
-                          defaultValue={i.dia}
-                          className="w-16 rounded-md border border-gray-300 px-2 py-1"
-                        />
-                        <MontoInput
-                          name="monto"
-                          defaultValue={i.monto}
-                          className="w-32 rounded-md border border-gray-300 px-2 py-1"
-                        />
-                        <button className="text-xs text-brand-600 hover:underline">Guardar</button>
-                      </form>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 align-top">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${ESTADO_STYLES[i.estado]}`}
-                    >
-                      {i.estado}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 align-top text-right">
-                    <div className="flex justify-end gap-2">
-                      {i.estado !== 'confirmado' && (
-                        <form action={cambiarEstadoIngreso}>
-                          <input type="hidden" name="id" value={i.id} />
-                          <input type="hidden" name="_path" value="/mes-actual" />
-                          <input type="hidden" name="nuevo_estado" value="confirmado" />
-                          <button className="text-xs text-brand-600 hover:underline">Confirmado</button>
-                        </form>
-                      )}
-                      {i.estado !== 'confirmado' && (
-                        <form action={deleteIncomeEntry}>
-                          <input type="hidden" name="id" value={i.id} />
-                          <input type="hidden" name="_path" value="/mes-actual" />
-                          <button className="text-xs text-red-400 hover:underline">Eliminar</button>
-                        </form>
-                      )}
-                      {i.estado === 'confirmado' && (
-                        <form action={cambiarEstadoIngreso}>
-                          <input type="hidden" name="id" value={i.id} />
-                          <input type="hidden" name="_path" value="/mes-actual" />
-                          <input type="hidden" name="nuevo_estado" value="pendiente" />
-                          <button className="text-xs text-gray-400 hover:underline">Revertir</button>
-                        </form>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {(ingresos ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-3 text-sm text-gray-400">
-                    No hay ingresos que coincidan con los filtros.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <h2 className="mb-3 text-lg font-medium">Ingresos</h2>
+        <IngresosEntriesTable
+          ingresos={ingresos}
+          updateIncomeEntry={updateIncomeEntry}
+          cambiarEstadoIngreso={cambiarEstadoIngreso}
+          deleteIncomeEntry={deleteIncomeEntry}
+        />
       </section>
     </div>
   );

@@ -14,8 +14,6 @@ const links = [
   { href: '/mes-actual', label: 'Mes actual' },
   { href: '/extras', label: 'Extras' },
   { href: '/fondo', label: 'Fondo mutuo' },
-  { href: '/movimientos', label: 'Movimientos' },
-  { href: '/plantillas', label: 'Plantillas' },
   { href: '/previsiones', label: 'Previsiones' },
   { href: '/configuracion', label: 'Configuración' },
 ];

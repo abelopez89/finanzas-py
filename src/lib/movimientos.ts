@@ -3,8 +3,8 @@ import { fechaDeEntry, toISODate } from '@/lib/period';
 
 export type MovimientoUnificado = {
   id: string;
-  tipo: 'Gasto' | 'Ingreso';
-  origen: 'Regular' | 'Extra';
+  tipo: 'Gasto' | 'Ingreso' | 'Interés' | 'Saldo inicial';
+  origen: 'Regular' | 'Extra' | 'Fondo';
   nombre: string;
   fecha: Date;
   monto: number;
@@ -13,18 +13,19 @@ export type MovimientoUnificado = {
 
 export type FiltrosMovimientos = {
   q?: string;
-  tipo?: 'Gasto' | 'Ingreso' | '';
-  origen?: 'Regular' | 'Extra' | '';
+  tipo?: MovimientoUnificado['tipo'] | '';
+  origen?: MovimientoUnificado['origen'] | '';
   estado?: string;
   desde?: string;
   hasta?: string;
 };
 
 /**
- * Trae y unifica los movimientos CONFIRMADOS de la cuenta (gastos pagados,
- * ingresos confirmados — regulares y extra) en una sola lista con fecha
- * real, y aplica los filtros en memoria. Pensado para una cantidad de datos
- * modesta (uso familiar), no para volúmenes grandes.
+ * Trae y unifica los movimientos CONFIRMADOS de la cuenta: gastos pagados,
+ * ingresos confirmados (regulares y extra), más los intereses y el saldo
+ * inicial registrados en el libro mayor del fondo. Aplica los filtros en
+ * memoria. Pensado para una cantidad de datos modesta (uso familiar), no
+ * para volúmenes grandes.
  */
 export async function getMovimientosUnificados(
   accountId: string,
@@ -32,9 +33,14 @@ export async function getMovimientosUnificados(
 ): Promise<MovimientoUnificado[]> {
   const supabase = createSupabaseServerClient();
 
-  const [{ data: gastos }, { data: ingresos }] = await Promise.all([
+  const [{ data: gastos }, { data: ingresos }, { data: fondoMovs }] = await Promise.all([
     supabase.from('expense_entries').select('*').eq('account_id', accountId).eq('estado', 'pagado'),
     supabase.from('income_entries').select('*').eq('account_id', accountId).eq('estado', 'confirmado'),
+    supabase
+      .from('fund_movements')
+      .select('*')
+      .eq('account_id', accountId)
+      .in('tipo', ['interes', 'saldo_inicial']),
   ]);
 
   const movimientos: MovimientoUnificado[] = [];
@@ -66,6 +72,18 @@ export async function getMovimientosUnificados(
       fecha,
       monto: Number(i.monto),
       estado: i.estado,
+    });
+  }
+
+  for (const f of fondoMovs ?? []) {
+    movimientos.push({
+      id: f.id,
+      tipo: f.tipo === 'interes' ? 'Interés' : 'Saldo inicial',
+      origen: 'Fondo',
+      nombre: f.descripcion ?? (f.tipo === 'interes' ? 'Interés' : 'Saldo inicial'),
+      fecha: new Date(`${f.fecha}T00:00:00Z`),
+      monto: Number(f.monto),
+      estado: 'confirmado',
     });
   }
 
