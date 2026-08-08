@@ -83,7 +83,7 @@ export default function IngresosEntriesTable({
       {/* ---------- Móvil ---------- */}
       <ul className="space-y-2 md:hidden">
         {filtrados.map((i) => (
-          <li key={i.id} className="card flex overflow-hidden">
+          <li key={`${i.id}-${i.dia}-${i.monto}-${i.estado}`} className="card flex overflow-hidden">
             <span className={`w-1 shrink-0 ${ESTADO_BARRA[i.estado] ?? ESTADO_BARRA.pendiente}`} />
             <div className="min-w-0 flex-1 p-3.5">
               <div className="flex items-start justify-between gap-3">
@@ -151,7 +151,10 @@ export default function IngresosEntriesTable({
           </thead>
           <tbody className="divide-y divide-line">
             {filtrados.map((i) => (
-              <tr key={i.id} className="transition-colors hover:bg-canvas/50">
+              <tr
+                key={`${i.id}-${i.dia}-${i.monto}-${i.estado}`}
+                className="transition-colors hover:bg-canvas/50"
+              >
                 <td className="px-4 py-3 align-middle font-medium text-ink">{i.nombre}</td>
                 {mostrarPeriodo && (
                   <td className="px-4 py-3 align-middle text-ink-500">{periodoLabel(i.periodo)}</td>

@@ -361,7 +361,7 @@ export async function cambiarDiaMasivo(formData: FormData) {
   const supabase = createSupabaseServerClient();
   const periodo = toISODate(getInicioPeriodoActual());
 
-  await supabase
+  const { error } = await supabase
     .from('expense_entries')
     .update({ dia: diaNuevo, updated_at: new Date().toISOString() })
     .eq('account_id', accountId)
@@ -370,7 +370,12 @@ export async function cambiarDiaMasivo(formData: FormData) {
     .eq('dia', diaActual)
     .eq('estado', 'pendiente');
 
-  revalidatePath('/mes-actual');
+  if (error) throw new Error(error.message);
+
+  // 'layout' fuerza a revalidar la página entera, no solo el segmento:
+  // así la grilla se redibuja con los días nuevos.
+  revalidatePath('/mes-actual', 'layout');
+  revalidatePath('/');
 }
 
 // ------------------------------ Eliminar movimientos del mes ------------------------------

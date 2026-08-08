@@ -79,7 +79,10 @@ export default function GastosTemplateTable({
       {/* ---------- Móvil ---------- */}
       <ul className="space-y-2 md:hidden">
         {filtrados.map((g) => (
-          <li key={g.id} className={`card p-3.5 ${g.activo ? '' : 'opacity-55'}`}>
+          <li
+            key={`${g.id}-${g.dia_mes}-${g.monto}-${g.payment_method_id}-${g.category_id}-${g.activo}`}
+            className={`card p-3.5 ${g.activo ? '' : 'opacity-55'}`}
+          >
             <form action={updateExpenseTemplate}>
               <Campos g={g} />
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -167,7 +170,7 @@ export default function GastosTemplateTable({
         <div className="divide-y divide-line">
           {filtrados.map((g) => (
             <form
-              key={g.id}
+              key={`${g.id}-${g.dia_mes}-${g.monto}-${g.payment_method_id}-${g.category_id}-${g.activo}`}
               action={updateExpenseTemplate}
               className={`grid grid-cols-[minmax(0,2fr)_64px_130px_150px_150px_76px_84px] items-center gap-2 px-4 py-2.5 transition-colors hover:bg-canvas/40 ${
                 g.activo ? '' : 'opacity-55'

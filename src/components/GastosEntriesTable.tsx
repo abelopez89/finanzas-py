@@ -135,7 +135,7 @@ export default function GastosEntriesTable({
       <ul className="space-y-2 md:hidden">
         {filtrados.map((g) => (
           <li
-            key={g.id}
+            key={`${g.id}-${g.dia}-${g.monto}-${g.estado}`}
             className={`card flex overflow-hidden ${
               vencido(g)
                 ? 'border-brick-100 bg-brick-50/30'
@@ -227,7 +227,7 @@ export default function GastosEntriesTable({
           <tbody className="divide-y divide-line">
             {filtrados.map((g) => (
               <tr
-                key={g.id}
+                key={`${g.id}-${g.dia}-${g.monto}-${g.estado}`}
                 className={`transition-colors ${
                   vencido(g)
                     ? 'bg-brick-50/50 hover:bg-brick-50'

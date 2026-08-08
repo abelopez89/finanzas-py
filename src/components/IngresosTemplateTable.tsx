@@ -56,7 +56,10 @@ export default function IngresosTemplateTable({
 
       <ul className="space-y-2 md:hidden">
         {filtrados.map((i) => (
-          <li key={i.id} className={`card p-3.5 ${i.activo ? '' : 'opacity-55'}`}>
+          <li
+            key={`${i.id}-${i.dia_mes}-${i.monto}-${i.activo}`}
+            className={`card p-3.5 ${i.activo ? '' : 'opacity-55'}`}
+          >
             <form action={updateIncomeTemplate}>
               <input type="hidden" name="id" value={i.id} />
               <input type="hidden" name="activo" value={String(i.activo)} />
@@ -110,7 +113,7 @@ export default function IngresosTemplateTable({
         <div className="divide-y divide-line">
           {filtrados.map((i) => (
             <form
-              key={i.id}
+              key={`${i.id}-${i.dia_mes}-${i.monto}-${i.activo}`}
               action={updateIncomeTemplate}
               className={`grid grid-cols-[minmax(0,2fr)_64px_140px_76px_84px] items-center gap-2 px-4 py-2.5 transition-colors hover:bg-canvas/40 ${
                 i.activo ? '' : 'opacity-55'

@@ -138,7 +138,10 @@ export default function ExtrasList({
 
       <ul className="space-y-2">
         {filtrados.map((it) => (
-          <li key={it.id} className="card flex overflow-hidden">
+          <li
+            key={`${it.id}-${it.monto}-${it.fecha}-${it.metodoId}-${it.estado}`}
+            className="card flex overflow-hidden"
+          >
             <span className={`w-1 shrink-0 ${ESTADO_BARRA[it.estado] ?? ESTADO_BARRA.pendiente}`} />
             <div className="min-w-0 flex-1 p-3.5">
               <div className="flex items-start justify-between gap-3">
