@@ -30,19 +30,28 @@ export function toISODate(fecha: Date): string {
   return format(fecha, 'yyyy-MM-dd');
 }
 
-/** Etiqueta legible: "27 de julio — 26 de agosto de 2026" */
-export function formatPeriodoLabel(inicio: Date): string {
-  const fin = getFinPeriodo(inicio);
-  return `${format(inicio, "d 'de' MMMM", { locale: es })} — ${format(
-    fin,
-    "d 'de' MMMM 'de' yyyy",
-    { locale: es }
-  )}`;
+/**
+ * El período se nombra por el mes en que TERMINA, no en que empieza: el
+ * ciclo 27/07–26/08 es "agosto", porque es el mes donde cae casi todo y
+ * donde efectivamente se paga.
+ */
+export function getMesDelPeriodo(inicio: Date): Date {
+  return getFinPeriodo(inicio);
 }
 
-/** Etiqueta corta para gráficos: "jul '26" */
+/** Etiqueta completa: "Agosto 2026 · 27 jul — 26 ago" */
+export function formatPeriodoLabel(inicio: Date): string {
+  const fin = getFinPeriodo(inicio);
+  const mes = format(fin, 'MMMM yyyy', { locale: es });
+  const mesCapitalizado = mes.charAt(0).toUpperCase() + mes.slice(1);
+  return `${mesCapitalizado} · ${format(inicio, 'd MMM', { locale: es })} — ${format(fin, 'd MMM', {
+    locale: es,
+  })}`;
+}
+
+/** Etiqueta corta para gráficos y tablas: "ago '26" */
 export function formatPeriodoCorto(inicio: Date): string {
-  return format(inicio, "MMM ''yy", { locale: es });
+  return format(getFinPeriodo(inicio), "MMM ''yy", { locale: es });
 }
 
 /** Devuelve los últimos N períodos (inicio de cada uno), en orden ascendente,
