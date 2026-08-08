@@ -88,3 +88,14 @@ export function fechaDeEntry(periodoISO: string, dia: number): Date {
   }
   return new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, dia));
 }
+
+/**
+ * ¿La fecha de aplicación de este movimiento ya pasó? Se compara contra
+ * hoy a medianoche, así un gasto que vence hoy todavía NO cuenta como
+ * vencido (hay hasta el mediodía para rescatarlo).
+ */
+export function estaVencido(periodoISO: string, dia: number): boolean {
+  const hoy = new Date();
+  const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  return fechaDeEntry(periodoISO, dia).getTime() < hoyUTC;
+}

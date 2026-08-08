@@ -1,6 +1,12 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
-import { getInicioPeriodoActual, formatPeriodoLabel, toISODate, ordenDiaPeriodo } from '@/lib/period';
+import {
+  getInicioPeriodoActual,
+  formatPeriodoLabel,
+  toISODate,
+  ordenDiaPeriodo,
+  estaVencido,
+} from '@/lib/period';
 import {
   generarMovimientosDelMes,
   generarMovimientosParaPeriodo,
@@ -16,7 +22,12 @@ import IngresosEntriesTable from '@/components/IngresosEntriesTable';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
 import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
 
-type Filtros = { estado?: string; dia_desde?: string; dia_hasta?: string };
+type Filtros = {
+  estado?: string;
+  metodo?: string;
+  dia_desde?: string;
+  dia_hasta?: string;
+};
 
 function ordenarGastos(gastos: any[]) {
   return [...gastos].sort((a, b) => {
@@ -44,12 +55,11 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
   const inicio = getInicioPeriodoActual();
   const periodo = toISODate(inicio);
 
-  // Al entrar por primera vez a un período nuevo, los movimientos de las
-  // plantillas activas se crean solos.
   if (accountId) await generarMovimientosParaPeriodo(accountId, periodo);
 
   const diaDesde = searchParams.dia_desde ? Number(searchParams.dia_desde) : null;
   const diaHasta = searchParams.dia_hasta ? Number(searchParams.dia_hasta) : null;
+  const estado = searchParams.estado ?? '';
 
   let gastosQuery = accountId
     ? supabase
@@ -69,10 +79,21 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     : null;
 
   if (gastosQuery && ingresosQuery) {
-    if (searchParams.estado) {
-      gastosQuery = gastosQuery.eq('estado', searchParams.estado);
-      ingresosQuery = ingresosQuery.eq('estado', searchParams.estado);
+    // Por defecto solo se muestra lo que queda por resolver. Lo ya pagado
+    // o confirmado se trae solo si se pide explícitamente.
+    if (estado === '') {
+      gastosQuery = gastosQuery.in('estado', ['pendiente', 'rescatado']);
+      ingresosQuery = ingresosQuery.eq('estado', 'pendiente');
+    } else if (estado !== 'todos') {
+      gastosQuery = gastosQuery.eq('estado', estado);
+      ingresosQuery = ingresosQuery.eq('estado', estado);
     }
+
+    // El método de pago solo aplica a gastos; los ingresos no lo tienen.
+    if (searchParams.metodo) {
+      gastosQuery = gastosQuery.eq('payment_method_id', searchParams.metodo);
+    }
+
     if (diaDesde !== null) {
       gastosQuery = gastosQuery.gte('dia', diaDesde);
       ingresosQuery = ingresosQuery.gte('dia', diaDesde);
@@ -88,6 +109,7 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     { data: ingresosRaw },
     { data: gastosAnterioresRaw },
     { data: ingresosAnterioresRaw },
+    { data: metodos },
   ] = accountId
     ? await Promise.all([
         gastosQuery!,
@@ -106,20 +128,44 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
           .eq('es_extra', false)
           .neq('estado', 'confirmado')
           .lt('periodo', periodo),
+        supabase.from('payment_methods').select('*').eq('account_id', accountId).eq('activo', true),
       ])
-    : [{ data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }, { data: [] as any[] }];
+    : [
+        { data: [] as any[] },
+        { data: [] as any[] },
+        { data: [] as any[] },
+        { data: [] as any[] },
+        { data: [] as any[] },
+      ];
 
   const gastos = ordenarGastos(gastosRaw ?? []);
   const ingresos = ordenarIngresos(ingresosRaw ?? []);
   const gastosAnteriores = ordenarGastos(gastosAnterioresRaw ?? []);
   const ingresosAnteriores = ordenarIngresos(ingresosAnterioresRaw ?? []);
 
-  const hayFiltros = Boolean(searchParams.estado || searchParams.dia_desde || searchParams.dia_hasta);
+  const hayFiltros = Boolean(
+    searchParams.estado || searchParams.metodo || searchParams.dia_desde || searchParams.dia_hasta
+  );
   const hayAtrasados = gastosAnteriores.length > 0 || ingresosAnteriores.length > 0;
+
+  const vencidosDelPeriodo = gastos.filter(
+    (g) => g.estado !== 'pagado' && estaVencido(g.periodo, g.dia)
+  );
 
   return (
     <div>
       <PageHeader titulo="Mes actual" descripcion={formatPeriodoLabel(inicio)} />
+
+      {vencidosDelPeriodo.length > 0 && (
+        <div className="mb-6">
+          <Aviso tono="error">
+            {vencidosDelPeriodo.length === 1
+              ? 'Hay 1 gasto vencido sin pagar en este período.'
+              : `Hay ${vencidosDelPeriodo.length} gastos vencidos sin pagar en este período.`}{' '}
+            Están marcados en rojo más abajo.
+          </Aviso>
+        </div>
+      )}
 
       {hayAtrasados && (
         <div className="mb-8">
@@ -154,55 +200,76 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
       )}
 
       <FiltrosPanel hayFiltrosActivos={hayFiltros}>
-        <form method="GET" className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:items-end">
+        <form method="GET" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="col-span-2 sm:col-span-1">
             <label className="label" htmlFor="estado">
               Estado
             </label>
-            <select id="estado" name="estado" defaultValue={searchParams.estado ?? ''} className="field">
-              <option value="">Todos</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="rescatado">Rescatado</option>
-              <option value="pagado">Pagado</option>
-              <option value="confirmado">Confirmado</option>
+            <select id="estado" name="estado" defaultValue={estado} className="field">
+              <option value="">Pendientes y rescatados</option>
+              <option value="todos">Todos</option>
+              <option value="pendiente">Solo pendientes</option>
+              <option value="rescatado">Solo rescatados</option>
+              <option value="pagado">Solo pagados</option>
+              <option value="confirmado">Solo confirmados</option>
             </select>
           </div>
-          <div>
-            <label className="label" htmlFor="dia_desde">
-              Día desde
+          <div className="col-span-2 sm:col-span-1">
+            <label className="label" htmlFor="metodo">
+              Método de pago
             </label>
-            <input
-              id="dia_desde"
-              name="dia_desde"
-              type="number"
-              min={1}
-              max={31}
-              defaultValue={searchParams.dia_desde ?? ''}
-              className="field"
-            />
+            <select id="metodo" name="metodo" defaultValue={searchParams.metodo ?? ''} className="field">
+              <option value="">Todos</option>
+              {(metodos ?? []).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
           </div>
-          <div>
-            <label className="label" htmlFor="dia_hasta">
-              Día hasta
-            </label>
-            <input
-              id="dia_hasta"
-              name="dia_hasta"
-              type="number"
-              min={1}
-              max={31}
-              defaultValue={searchParams.dia_hasta ?? ''}
-              className="field"
-            />
+          <div className="sm:col-span-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label" htmlFor="dia_desde">
+                  Día desde
+                </label>
+                <input
+                  id="dia_desde"
+                  name="dia_desde"
+                  type="number"
+                  min={1}
+                  max={31}
+                  defaultValue={searchParams.dia_desde ?? ''}
+                  className="field"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="dia_hasta">
+                  Día hasta
+                </label>
+                <input
+                  id="dia_hasta"
+                  name="dia_hasta"
+                  type="number"
+                  min={1}
+                  max={31}
+                  defaultValue={searchParams.dia_hasta ?? ''}
+                  className="field"
+                />
+              </div>
+            </div>
           </div>
-          <div className="col-span-2 flex gap-2 sm:col-span-1">
-            <button className="btn-primary flex-1">Aplicar</button>
+          <div className="col-span-2 flex gap-2 sm:col-span-3">
+            <button className="btn-primary flex-1 sm:flex-none">Aplicar</button>
             {hayFiltros && (
               <a href="/mes-actual" className="btn-secondary">
                 Limpiar
               </a>
             )}
           </div>
+          <p className="col-span-2 text-xs text-ink-400 sm:col-span-3">
+            El método de pago solo filtra gastos — los ingresos no lo tienen.
+          </p>
         </form>
       </FiltrosPanel>
 

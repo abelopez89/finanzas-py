@@ -6,7 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
-import { formatPeriodoCorto } from '@/lib/period';
+import { formatPeriodoCorto, estaVencido } from '@/lib/period';
 
 type Gasto = {
   id: string;
@@ -16,6 +16,23 @@ type Gasto = {
   estado: string;
   periodo: string;
 };
+
+/** Vencido = fecha pasada y todavía sin pagar. */
+function vencido(g: Gasto) {
+  return g.estado !== 'pagado' && estaVencido(g.periodo, g.dia);
+}
+
+function EtiquetaVencido() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-brick-50 px-2 py-0.5 text-[11px] font-medium text-brick-700 ring-1 ring-inset ring-brick-100">
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+        <path d="M12 8v5M12 16.5v.01" />
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+      Vencido
+    </span>
+  );
+}
 
 export default function GastosEntriesTable({
   gastos,
@@ -93,8 +110,15 @@ export default function GastosEntriesTable({
       {/* ---------- Móvil: fichas con pestaña de estado ---------- */}
       <ul className="space-y-2 md:hidden">
         {filtrados.map((g) => (
-          <li key={g.id} className="card flex overflow-hidden">
-            <span className={`w-1 shrink-0 ${ESTADO_BARRA[g.estado] ?? ESTADO_BARRA.pendiente}`} />
+          <li
+            key={g.id}
+            className={`card flex overflow-hidden ${vencido(g) ? 'border-brick-100 bg-brick-50/30' : ''}`}
+          >
+            <span
+              className={`w-1 shrink-0 ${
+                vencido(g) ? 'bg-brick-600' : ESTADO_BARRA[g.estado] ?? ESTADO_BARRA.pendiente
+              }`}
+            />
             <div className="min-w-0 flex-1 p-3.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -103,6 +127,11 @@ export default function GastosEntriesTable({
                     Día {g.dia}
                     {mostrarPeriodo && ` · ${periodoLabel(g.periodo)}`}
                   </p>
+                  {vencido(g) && (
+                    <div className="mt-1.5">
+                      <EtiquetaVencido />
+                    </div>
+                  )}
                 </div>
                 <div className="shrink-0 text-right">
                   <Money value={g.monto} className="font-semibold text-ink" />
@@ -161,8 +190,20 @@ export default function GastosEntriesTable({
           </thead>
           <tbody className="divide-y divide-line">
             {filtrados.map((g) => (
-              <tr key={g.id} className="transition-colors hover:bg-canvas/50">
-                <td className="px-4 py-3 align-middle font-medium text-ink">{g.nombre}</td>
+              <tr
+                key={g.id}
+                className={`transition-colors ${
+                  vencido(g) ? 'bg-brick-50/50 hover:bg-brick-50' : 'hover:bg-canvas/50'
+                }`}
+              >
+                <td className="px-4 py-3 align-middle font-medium text-ink">
+                  <span className="flex items-center gap-2">
+                    {vencido(g) && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brick-600" title="Vencido" />
+                    )}
+                    {g.nombre}
+                  </span>
+                </td>
                 {mostrarPeriodo && (
                   <td className="px-4 py-3 align-middle text-ink-500">{periodoLabel(g.periodo)}</td>
                 )}
@@ -190,7 +231,7 @@ export default function GastosEntriesTable({
                   )}
                 </td>
                 <td className="px-4 py-3 align-middle">
-                  <StatusPill estado={g.estado} />
+                  {vencido(g) ? <EtiquetaVencido /> : <StatusPill estado={g.estado} />}
                 </td>
                 <td className="px-4 py-3 align-middle">
                   <Acciones g={g} />
