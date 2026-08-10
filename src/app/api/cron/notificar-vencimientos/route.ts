@@ -37,49 +37,66 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
-  const supabase = createSupabaseServiceClient();
-
-  // Cuentas que tienen al menos un destinatario activo
-  const { data: destinatarios, error: errorDest } = await supabase
-    .from('telegram_recipients')
-    .select('account_id, chat_id')
-    .eq('activo', true);
-
-  if (errorDest) {
-    return NextResponse.json({ error: errorDest.message }, { status: 500 });
-  }
-
-  const porCuenta = new Map<string, string[]>();
-  for (const d of destinatarios ?? []) {
-    porCuenta.set(d.account_id, [...(porCuenta.get(d.account_id) ?? []), d.chat_id]);
-  }
-
-  const resumen: Array<Record<string, unknown>> = [];
-
-  for (const [accountId, chatIds] of porCuenta) {
-    try {
-      const mensaje = await construirAvisoDiario(supabase, accountId);
-
-      // Sin vencimientos ni atrasados: no se manda nada, para que el aviso
-      // diario no se vuelva ruido que se ignora.
-      if (!mensaje) {
-        resumen.push({ accountId, enviados: 0, omitido: 'sin vencimientos' });
-        continue;
-      }
-
-      const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
-      resumen.push({ accountId, enviados, fallidos });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      console.error(`Error notificando cuenta ${accountId}:`, err);
-      resumen.push({ accountId, error: message });
+  // Todo el cuerpo va envuelto: si algo revienta antes de armar la
+  // respuesta (cliente mal configurado, variable de entorno faltante),
+  // Vercel devolvía un 500 genérico sin detalle. Ahora se captura y se
+  // informa qué pasó, además de quedar en los logs con console.error.
+  try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error('Falta SUPABASE_SERVICE_ROLE_KEY en las variables de entorno');
     }
-  }
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      throw new Error('Falta TELEGRAM_BOT_TOKEN en las variables de entorno');
+    }
 
-  return NextResponse.json({
-    ok: true,
-    ejecutado: new Date().toISOString(),
-    cuentas: resumen.length,
-    resumen,
-  });
+    const supabase = createSupabaseServiceClient();
+
+    // Cuentas que tienen al menos un destinatario activo
+    const { data: destinatarios, error: errorDest } = await supabase
+      .from('telegram_recipients')
+      .select('account_id, chat_id')
+      .eq('activo', true);
+
+    if (errorDest) {
+      throw new Error(`Consultando destinatarios: ${errorDest.message}`);
+    }
+
+    const porCuenta = new Map<string, string[]>();
+    for (const d of destinatarios ?? []) {
+      porCuenta.set(d.account_id, [...(porCuenta.get(d.account_id) ?? []), d.chat_id]);
+    }
+
+    const resumen: Array<Record<string, unknown>> = [];
+
+    for (const [accountId, chatIds] of porCuenta) {
+      try {
+        const mensaje = await construirAvisoDiario(supabase, accountId);
+
+        // Sin vencimientos ni atrasados: no se manda nada, para que el
+        // aviso diario no se vuelva ruido que se ignora.
+        if (!mensaje) {
+          resumen.push({ accountId, enviados: 0, omitido: 'sin vencimientos' });
+          continue;
+        }
+
+        const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
+        resumen.push({ accountId, enviados, fallidos });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error desconocido';
+        console.error(`Error notificando cuenta ${accountId}:`, err);
+        resumen.push({ accountId, error: message });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      ejecutado: new Date().toISOString(),
+      cuentas: resumen.length,
+      resumen,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Error en cron notificar-vencimientos:', err);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
 }
