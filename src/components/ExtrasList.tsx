@@ -179,9 +179,23 @@ export default function ExtrasList({
         {filtrados.map((it) => (
           <li
             key={`${it.id}-${it.monto}-${it.fecha}-${it.metodoId}-${it.estado}`}
-            className="card flex overflow-hidden"
+            className={`card flex overflow-hidden ${
+              vencido(it, esGasto)
+                ? 'border-brick-100 bg-brick-50/30'
+                : porVencer(it, esGasto)
+                  ? 'border-ochre-100 bg-ochre-50/30'
+                  : ''
+            }`}
           >
-            <span className={`w-1 shrink-0 ${ESTADO_BARRA[it.estado] ?? ESTADO_BARRA.pendiente}`} />
+            <span
+              className={`w-1 shrink-0 ${
+                vencido(it, esGasto)
+                  ? 'bg-brick-600'
+                  : porVencer(it, esGasto)
+                    ? 'bg-ochre-600'
+                    : ESTADO_BARRA[it.estado] ?? ESTADO_BARRA.pendiente
+              }`}
+            />
             <div className="min-w-0 flex-1 p-3.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
