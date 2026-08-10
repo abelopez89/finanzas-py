@@ -6,6 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
+import { estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
 
 type Metodo = { id: string; nombre: string };
 
@@ -17,7 +18,45 @@ export type Extra = {
   fecha: string | null;
   metodoId: string | null;
   metodoNombre: string | null;
+  periodo: string;
+  dia: number;
 };
+
+/** Vencido = fecha pasada y todavía sin pagar. Solo aplica a gastos: los
+ *  ingresos no tienen el concepto de "urgencia de rescate". */
+function vencido(it: Extra, esGasto: boolean) {
+  return esGasto && it.estado !== 'pagado' && estaVencido(it.periodo, it.dia);
+}
+
+function porVencer(it: Extra, esGasto: boolean) {
+  return esGasto && it.estado === 'pendiente' && estaPorVencer(it.periodo, it.dia);
+}
+
+function EtiquetaVencido() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-brick-50 px-2 py-0.5 text-[11px] font-medium text-brick-700 ring-1 ring-inset ring-brick-100">
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+        <path d="M12 8v5M12 16.5v.01" />
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+      Vencido
+    </span>
+  );
+}
+
+function EtiquetaPorVencer({ it }: { it: Extra }) {
+  const dias = diasParaVencer(it.periodo, it.dia);
+  const texto = dias === 0 ? 'Vence hoy' : dias === 1 ? 'Vence mañana' : `Vence en ${dias} días`;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-ochre-50 px-2 py-0.5 text-[11px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100">
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7.5V12l2.5 2" />
+      </svg>
+      {texto}
+    </span>
+  );
+}
 
 export default function ExtrasList({
   items,
@@ -158,7 +197,13 @@ export default function ExtrasList({
                     className={`font-semibold ${esGasto ? 'text-ink' : 'text-pine-700'}`}
                   />
                   <div className="mt-1">
-                    <StatusPill estado={it.estado} />
+                    {vencido(it, esGasto) ? (
+                      <EtiquetaVencido />
+                    ) : porVencer(it, esGasto) ? (
+                      <EtiquetaPorVencer it={it} />
+                    ) : (
+                      <StatusPill estado={it.estado} />
+                    )}
                   </div>
                 </div>
               </div>

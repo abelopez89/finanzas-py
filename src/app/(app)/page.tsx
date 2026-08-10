@@ -8,12 +8,14 @@ import {
   formatPeriodoCorto,
   formatPeriodoLabel,
   ordenDiaPeriodo,
+  fechaDeEntry,
 } from '@/lib/period';
 import BarChartIngresosEgresos from '@/components/BarChartIngresosEgresos';
 import PieChartCategorias from '@/components/PieChartCategorias';
 import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import { Section, EmptyState, Aviso } from '@/components/ui/Layout';
+import Link from 'next/link';
 
 function periodoKeyFor(fechaStr: string): string {
   return toISODate(getInicioPeriodoActual(new Date(`${fechaStr}T00:00:00Z`)));
@@ -33,29 +35,41 @@ export default async function DashboardPage() {
 
   const periodoActual = getInicioPeriodoActual();
   const periodoActualISO = toISODate(periodoActual);
+  const hoyISO = toISODate(new Date());
 
-  const [{ data: movimientos }, { data: pendientes }, { data: gastosPeriodoConCategoria }] =
-    await Promise.all([
-      supabase.from('fund_movements').select('*').eq('account_id', accountId).order('fecha'),
-      supabase
-        .from('expense_entries')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('periodo', periodoActualISO)
-        .neq('estado', 'pagado'),
-      supabase
-        .from('expense_entries')
-        .select('monto, category_id, categories(nombre)')
-        .eq('account_id', accountId)
-        .eq('periodo', periodoActualISO),
-    ]);
-
-  const { data: pagadosDelMes } = await supabase
-    .from('expense_entries')
-    .select('monto')
-    .eq('account_id', accountId)
-    .eq('periodo', periodoActualISO)
-    .eq('estado', 'pagado');
+  const [
+    { data: movimientos },
+    { data: pendientes },
+    { data: gastosPeriodoConCategoria },
+    { data: pagadosDelMes },
+    { data: pendientesTodos },
+  ] = await Promise.all([
+    supabase.from('fund_movements').select('*').eq('account_id', accountId).order('fecha'),
+    supabase
+      .from('expense_entries')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('periodo', periodoActualISO)
+      .neq('estado', 'pagado'),
+    supabase
+      .from('expense_entries')
+      .select('monto, category_id, categories(nombre)')
+      .eq('account_id', accountId)
+      .eq('periodo', periodoActualISO),
+    supabase
+      .from('expense_entries')
+      .select('monto')
+      .eq('account_id', accountId)
+      .eq('periodo', periodoActualISO)
+      .eq('estado', 'pagado'),
+    // Sin filtro de período: acá es donde se detectan los atrasados de
+    // meses anteriores, no solo lo del período vigente.
+    supabase
+      .from('expense_entries')
+      .select('*, payment_methods(nombre)')
+      .eq('account_id', accountId)
+      .eq('estado', 'pendiente'),
+  ]);
 
   const saldoActual = calcularSaldoFondo(movimientos ?? []);
 
@@ -64,6 +78,27 @@ export default async function DashboardPage() {
   );
   const totalPendiente = pendientesOrdenados.reduce((a, g) => a + Number(g.monto), 0);
   const totalPagado = (pagadosDelMes ?? []).reduce((a, g) => a + Number(g.monto), 0);
+
+  // Fecha real de cada pendiente: los extras la tienen explícita, los
+  // regulares se derivan del período (ciclo 27-26) y el día.
+  const pendientesConFecha = (pendientesTodos ?? []).map((g: any) => ({
+    ...g,
+    fechaISO:
+      g.es_extra && g.fecha_vencimiento
+        ? g.fecha_vencimiento
+        : toISODate(fechaDeEntry(g.periodo, g.dia)),
+  }));
+
+  const vencenHoy = pendientesConFecha
+    .filter((g) => g.fechaISO === hoyISO)
+    .sort((a, b) => (a.payment_methods?.nombre ?? '').localeCompare(b.payment_methods?.nombre ?? '', 'es'));
+  const atrasados = pendientesConFecha.filter((g) => g.fechaISO < hoyISO);
+  const totalARescatarHoy = [...vencenHoy, ...atrasados].reduce((a, g) => a + Number(g.monto), 0);
+
+  // "Próximos" excluye lo que ya está en el resumen de rescate de hoy.
+  const proximosOrdenados = pendientesOrdenados.filter(
+    (g) => g.estado !== 'pendiente' || !vencenHoy.some((v) => v.id === g.id)
+  );
 
   // Ingresos vs egresos por período de facturación (no mes calendario)
   const buckets = new Map<string, { ingresos: number; egresos: number }>();
@@ -103,7 +138,60 @@ export default async function DashboardPage() {
         <p className="mt-3 text-[13px] text-ink-300">{formatPeriodoLabel(periodoActual)}</p>
       </section>
 
-      {/* ---------- Dos cifras de acción ---------- */}
+      {/* ---------- Rescate de hoy: lo primero que hay que resolver ---------- */}
+      {(vencenHoy.length > 0 || atrasados.length > 0) && (
+        <section className="mb-8 overflow-hidden rounded-card border border-ochre-100 bg-ochre-50/40">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ochre-100 px-5 py-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-ochre-700">
+                Para rescatar antes del mediodía
+              </p>
+              <Money value={totalARescatarHoy} size="lg" className="mt-1 block font-semibold text-ochre-700" />
+            </div>
+            <div className="text-right text-xs text-ink-500">
+              {vencenHoy.length > 0 && (
+                <p>
+                  {vencenHoy.length} vence{vencenHoy.length === 1 ? '' : 'n'} hoy
+                </p>
+              )}
+              {atrasados.length > 0 && (
+                <p className="font-medium text-brick-600">
+                  {atrasados.length} atrasado{atrasados.length === 1 ? '' : 's'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {vencenHoy.length > 0 && (
+            <ul className="divide-y divide-ochre-100">
+              {vencenHoy.map((g) => (
+                <li key={g.id} className="flex items-center gap-3 px-5 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {g.nombre}
+                      {g.es_extra && <span className="ml-1.5 text-xs text-ink-400">extra</span>}
+                    </p>
+                    {g.payment_methods?.nombre && (
+                      <p className="text-xs text-ink-400">{g.payment_methods.nombre}</p>
+                    )}
+                  </div>
+                  <Money value={g.monto} className="shrink-0 font-medium text-ink" />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {atrasados.length > 0 && (
+            <div className="border-t border-ochre-100 px-5 py-3">
+              <Link href="/mes-actual" className="text-sm font-medium text-brick-600 hover:underline">
+                Ver {atrasados.length} atrasado{atrasados.length === 1 ? '' : 's'} de meses anteriores →
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ---------- Dos cifras de contexto ---------- */}
       <div className="mb-8 grid grid-cols-2 gap-3">
         <div className="card p-4">
           <p className="text-[11px] uppercase tracking-wide text-ink-400">Pendiente del mes</p>
@@ -121,10 +209,10 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* ---------- Próximos vencimientos ---------- */}
+      {/* ---------- Próximos vencimientos (sin lo que ya está en "rescate de hoy") ---------- */}
       <Section titulo="Próximos vencimientos">
         <ul className="card divide-y divide-line overflow-hidden">
-          {pendientesOrdenados.slice(0, 6).map((g) => (
+          {proximosOrdenados.slice(0, 6).map((g) => (
             <li key={g.id} className="flex items-center gap-3 px-4 py-3">
               <span
                 className={`h-8 w-1 shrink-0 rounded-full ${ESTADO_BARRA[g.estado] ?? ESTADO_BARRA.pendiente}`}
@@ -146,7 +234,7 @@ export default async function DashboardPage() {
               </div>
             </li>
           ))}
-          {pendientesOrdenados.length === 0 && (
+          {proximosOrdenados.length === 0 && (
             <EmptyState mensaje="No queda nada pendiente en este período." />
           )}
         </ul>

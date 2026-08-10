@@ -5,7 +5,8 @@ import ExtrasList from '@/components/ExtrasList';
 import NuevoPanel from '@/components/ui/NuevoPanel';
 import FormularioAlta from '@/components/ui/FormularioAlta';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
-import { PageHeader, Section } from '@/components/ui/Layout';
+import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
+import { estaVencido } from '@/lib/period';
 import {
   addExpenseExtra,
   addIncomeExtra,
@@ -87,6 +88,10 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
 
   const hayFiltros = Boolean(searchParams.estado || searchParams.desde || searchParams.hasta);
 
+  const vencidosExtra = gastosOrdenados.filter(
+    (g) => g.estado !== 'pagado' && estaVencido(g.periodo, g.dia)
+  );
+
   return (
     <div>
       <PageHeader
@@ -143,6 +148,17 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
           </div>
         </form>
       </FiltrosPanel>
+
+      {vencidosExtra.length > 0 && (
+        <div className="mb-6">
+          <Aviso tono="error">
+            {vencidosExtra.length === 1
+              ? 'Hay 1 gasto extra vencido sin pagar.'
+              : `Hay ${vencidosExtra.length} gastos extra vencidos sin pagar.`}{' '}
+            Están marcados en rojo más abajo.
+          </Aviso>
+        </div>
+      )}
 
       {/* ---------------- Gastos extra ---------------- */}
       <Section titulo="Gastos extra">
@@ -215,6 +231,8 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
             fecha: g.fecha_vencimiento,
             metodoId: g.payment_method_id,
             metodoNombre: (g as any).payment_methods?.nombre ?? null,
+            periodo: g.periodo,
+            dia: g.dia,
           }))}
           cambiarEstado={cambiarEstadoGasto}
           updateExtra={updateExpenseExtra}
@@ -266,6 +284,8 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
             fecha: i.fecha_aplicacion,
             metodoId: null,
             metodoNombre: null,
+            periodo: i.periodo,
+            dia: i.dia,
           }))}
           cambiarEstado={cambiarEstadoIngreso}
           updateExtra={updateIncomeExtra}
