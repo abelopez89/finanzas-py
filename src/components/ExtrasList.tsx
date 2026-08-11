@@ -6,7 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
-import { estaVencido, estaPorVencer, diasParaVencer, toISODate } from '@/lib/period';
+import { estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
 
 type Metodo = { id: string; nombre: string };
 
@@ -84,46 +84,27 @@ export default function ExtrasList({
   }, [items, busqueda]);
 
   const total = filtrados.reduce((a, i) => a + Number(i.monto), 0);
-  const hoyISO = toISODate(new Date());
 
   const Acciones = ({ it }: { it: Extra }) => (
     <div className="flex flex-wrap items-center gap-1">
       {esGasto ? (
         <>
           {it.estado === 'pendiente' && (
-            <form action={cambiarEstado} className="flex items-center gap-1">
+            <form action={cambiarEstado}>
               <input type="hidden" name="id" value={it.id} />
               <input type="hidden" name="_path" value="/extras" />
               <input type="hidden" name="nuevo_estado" value="rescatado" />
-              <input
-                type="date"
-                name="fecha"
-                defaultValue={hoyISO}
-                title="Día en que realmente se rescató"
-                className="field-sm w-[128px]"
-              />
-              <button className="btn-row shrink-0 bg-ochre-50 text-ochre-700 hover:bg-ochre-100">
+              <button className="btn-row bg-ochre-50 text-ochre-700 hover:bg-ochre-100">
                 Rescatar
               </button>
             </form>
           )}
           {it.estado !== 'pagado' && (
-            <form action={cambiarEstado} className="flex items-center gap-1">
+            <form action={cambiarEstado}>
               <input type="hidden" name="id" value={it.id} />
               <input type="hidden" name="_path" value="/extras" />
               <input type="hidden" name="nuevo_estado" value="pagado" />
-              {it.estado === 'pendiente' && (
-                <input
-                  type="date"
-                  name="fecha"
-                  defaultValue={hoyISO}
-                  title="Día en que realmente se pagó"
-                  className="field-sm w-[128px]"
-                />
-              )}
-              <button className="btn-row shrink-0 bg-pine-50 text-pine-700 hover:bg-pine-100">
-                Pagar
-              </button>
+              <button className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100">Pagar</button>
             </form>
           )}
           {it.estado !== 'pendiente' && (
@@ -138,18 +119,11 @@ export default function ExtrasList({
       ) : (
         <>
           {it.estado !== 'confirmado' && (
-            <form action={cambiarEstado} className="flex items-center gap-1">
+            <form action={cambiarEstado}>
               <input type="hidden" name="id" value={it.id} />
               <input type="hidden" name="_path" value="/extras" />
               <input type="hidden" name="nuevo_estado" value="confirmado" />
-              <input
-                type="date"
-                name="fecha"
-                defaultValue={hoyISO}
-                title="Día en que realmente entró la plata"
-                className="field-sm w-[128px]"
-              />
-              <button className="btn-row shrink-0 bg-pine-50 text-pine-700 hover:bg-pine-100">
+              <button className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100">
                 Confirmar
               </button>
             </form>

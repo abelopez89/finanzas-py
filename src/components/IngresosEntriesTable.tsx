@@ -6,7 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
-import { formatPeriodoCorto, toISODate } from '@/lib/period';
+import { formatPeriodoCorto } from '@/lib/period';
 
 type Ingreso = {
   id: string;
@@ -39,27 +39,17 @@ export default function IngresosEntriesTable({
   }, [ingresos, busqueda]);
 
   const total = filtrados.reduce((a, i) => a + Number(i.monto), 0);
-  const hoyISO = toISODate(new Date());
   const periodoLabel = (p: string) => formatPeriodoCorto(new Date(`${p}T00:00:00Z`));
 
   const Acciones = ({ i, compacto }: { i: Ingreso; compacto?: boolean }) => (
     <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
       {i.estado !== 'confirmado' ? (
         <>
-          <form action={cambiarEstadoIngreso} className="flex items-center gap-1">
+          <form action={cambiarEstadoIngreso}>
             <input type="hidden" name="id" value={i.id} />
             <input type="hidden" name="_path" value="/mes-actual" />
             <input type="hidden" name="nuevo_estado" value="confirmado" />
-            <input
-              type="date"
-              name="fecha"
-              defaultValue={hoyISO}
-              title="Día en que realmente entró la plata"
-              className="field-sm w-[128px]"
-            />
-            <button className="btn-row shrink-0 bg-pine-50 text-pine-700 hover:bg-pine-100">
-              Confirmar
-            </button>
+            <button className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100">Confirmar</button>
           </form>
           <form action={deleteIncomeEntry}>
             <input type="hidden" name="id" value={i.id} />
