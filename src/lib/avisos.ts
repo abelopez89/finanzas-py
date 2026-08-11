@@ -18,9 +18,10 @@ type GastoAviso = {
 };
 
 /**
- * Arma el aviso diario de una cuenta: gastos que vencen hoy y los que ya
- * quedaron atrás sin pagar. Devuelve null si no hay nada que avisar, para
- * no mandar un mensaje vacío todos los días.
+ * Arma el aviso diario de una cuenta: gastos que vencen hoy, los que ya
+ * quedaron atrás sin pagar, y el saldo del fondo. Se manda siempre que haya
+ * al menos un destinatario — incluso sin vencimientos, sirve como check-in
+ * diario del saldo.
  */
 export async function construirAvisoDiario(
   // Acepta cualquiera de los dos clientes (sesión de usuario o service
@@ -62,10 +63,6 @@ export async function construirAvisoDiario(
   const atrasados = conFecha
     .filter((g) => g.fechaISO < hoyISO && g.estado === 'pendiente')
     .sort((a, b) => a.fechaISO.localeCompare(b.fechaISO));
-
-  if (vencenHoy.length === 0 && atrasados.length === 0 && !opciones.forzar) {
-    return null;
-  }
 
   const linea = (g: GastoAviso, mostrarFecha = false) => {
     const partes = [`• <b>${escapeHtml(g.nombre)}</b> — ${fmtGs(g.monto)}`];

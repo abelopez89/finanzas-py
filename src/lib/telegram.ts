@@ -77,3 +77,58 @@ export async function sendTelegramBroadcast(chatIds: string[], text: string) {
 
   return { enviados, fallidos };
 }
+
+/** Envía un archivo (documento) por Telegram, ej. un Excel de extracto. */
+export async function sendTelegramDocument(
+  chatId: string,
+  buffer: Buffer,
+  filename: string,
+  caption?: string
+) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error('Falta TELEGRAM_BOT_TOKEN en las variables de entorno');
+
+  const form = new FormData();
+  form.append('chat_id', chatId);
+  if (caption) form.append('caption', caption);
+  form.append('parse_mode', 'HTML');
+  form.append(
+    'document',
+    new Blob([new Uint8Array(buffer)], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+    filename
+  );
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+    method: 'POST',
+    body: form,
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(explicarErrorTelegram(res.status, body));
+  }
+}
+
+export async function sendTelegramDocumentBroadcast(
+  chatIds: string[],
+  buffer: Buffer,
+  filename: string,
+  caption?: string
+) {
+  const resultados = await Promise.allSettled(
+    chatIds.map((chatId) => sendTelegramDocument(chatId, buffer, filename, caption))
+  );
+
+  const enviados = resultados.filter((r) => r.status === 'fulfilled').length;
+  const fallidos = resultados
+    .map((r, i) => ({ r, chatId: chatIds[i] }))
+    .filter(({ r }) => r.status === 'rejected')
+    .map(({ r, chatId }) => ({
+      chatId,
+      error: (r as PromiseRejectedResult).reason?.message ?? 'Error desconocido',
+    }));
+
+  return { enviados, fallidos };
+}

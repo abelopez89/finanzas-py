@@ -2,7 +2,11 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { calcularSaldoFondo } from '@/lib/fund';
 import { getMovimientosUnificados, type FiltrosMovimientos } from '@/lib/movimientos';
-import { toISODate } from '@/lib/period';
+import { toISODate, getPeriodosAnteriores, formatPeriodoCorto } from '@/lib/period';
+import { construirExtractoMensual, construirBufferExtracto } from '@/lib/extractoMensual';
+import { sendTelegramDocumentBroadcast } from '@/lib/telegram';
+import ExtractoMensualPanel from '@/components/ExtractoMensualPanel';
+import type { ResultadoPrueba } from '@/components/TestTelegramButton';
 import MontoInput from '@/components/MontoInput';
 import Money from '@/components/ui/Money';
 import MovimientosList from '@/components/MovimientosList';
@@ -57,6 +61,75 @@ async function registrarChequeoSaldo(formData: FormData) {
   revalidatePath('/fondo');
 }
 
+async function enviarExtractoPorTelegram(
+  _prev: ResultadoPrueba,
+  formData: FormData
+): Promise<ResultadoPrueba> {
+  'use server';
+
+  try {
+    const accountId = await getCurrentAccountId();
+    if (!accountId) {
+      return { ok: false, mensaje: 'No se encontró la cuenta de tu sesión.' };
+    }
+
+    const periodoISO = String(formData.get('periodo') ?? '');
+    if (!periodoISO) {
+      return { ok: false, mensaje: 'Falta elegir un período.' };
+    }
+
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      return {
+        ok: false,
+        mensaje: 'Falta TELEGRAM_BOT_TOKEN en las variables de entorno de Vercel.',
+      };
+    }
+
+    const supabase = createSupabaseServerClient();
+    const { data: destinatarios } = await supabase
+      .from('telegram_recipients')
+      .select('chat_id')
+      .eq('account_id', accountId)
+      .eq('activo', true);
+
+    const chatIds = (destinatarios ?? []).map((d) => d.chat_id);
+    if (chatIds.length === 0) {
+      return { ok: false, mensaje: 'No hay destinatarios de Telegram activos.' };
+    }
+
+    const extracto = await construirExtractoMensual(accountId, periodoISO);
+    const buffer = construirBufferExtracto(extracto);
+    const caption =
+      `<b>Extracto — ${extracto.periodoLabel}</b>\n` +
+      `Saldo anterior: ₲ ${extracto.saldoAnterior.toLocaleString('es-PY')}\n` +
+      `Saldo final: ₲ ${extracto.saldoFinal.toLocaleString('es-PY')}`;
+
+    const { enviados, fallidos } = await sendTelegramDocumentBroadcast(
+      chatIds,
+      buffer,
+      `extracto_${periodoISO}.xlsx`,
+      caption
+    );
+
+    if (fallidos.length > 0) {
+      return {
+        ok: false,
+        mensaje: `Enviado a ${enviados} de ${chatIds.length}. Falló: ${fallidos
+          .map((f) => `${f.chatId} — ${f.error}`)
+          .join(' · ')}`,
+      };
+    }
+
+    return {
+      ok: true,
+      mensaje: `Extracto enviado a ${enviados} destinatario${enviados === 1 ? '' : 's'}.`,
+    };
+  } catch (err) {
+    const detalle = err instanceof Error ? err.message : String(err);
+    return { ok: false, mensaje: `No se pudo enviar: ${detalle}` };
+  }
+}
+
 export default async function FondoPage({ searchParams }: { searchParams: FiltrosMovimientos }) {
   const accountId = await getCurrentAccountId();
   const supabase = createSupabaseServerClient();
@@ -69,22 +142,33 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
     );
   }
 
-  const [{ data: movimientosFondo }, { data: chequeos }, movimientos] = await Promise.all([
-    supabase.from('fund_movements').select('*').eq('account_id', accountId),
-    supabase
-      .from('fund_balance_checks')
-      .select('*')
-      .eq('account_id', accountId)
-      .order('fecha', { ascending: false })
-      .limit(6),
-    getMovimientosUnificados(accountId, searchParams),
-  ]);
+  const [{ data: movimientosFondo }, { data: chequeos }, movimientos, { data: destinatariosTelegram }] =
+    await Promise.all([
+      supabase.from('fund_movements').select('*').eq('account_id', accountId),
+      supabase
+        .from('fund_balance_checks')
+        .select('*')
+        .eq('account_id', accountId)
+        .order('fecha', { ascending: false })
+        .limit(6),
+      getMovimientosUnificados(accountId, searchParams),
+      supabase
+        .from('telegram_recipients')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('activo', true),
+    ]);
 
   const saldoActual = calcularSaldoFondo(movimientosFondo ?? []);
   const totalGastos = movimientos.filter((m) => m.tipo === 'Gasto').reduce((a, m) => a + m.monto, 0);
   const totalIngresos = movimientos
     .filter((m) => m.tipo === 'Ingreso')
     .reduce((a, m) => a + m.monto, 0);
+
+  const periodosDisponibles = getPeriodosAnteriores(12)
+    .slice()
+    .reverse()
+    .map((p) => ({ iso: toISODate(p), label: formatPeriodoCorto(p) }));
 
   const hayFiltros = Boolean(
     searchParams.q || searchParams.tipo || searchParams.origen || searchParams.desde || searchParams.hasta
@@ -168,6 +252,15 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
             </div>
           )}
         </div>
+      </Section>
+
+      {/* ---------- Extracto mensual ---------- */}
+      <Section titulo="Extracto mensual">
+        <ExtractoMensualPanel
+          periodos={periodosDisponibles}
+          hayDestinatarios={(destinatariosTelegram ?? []).length > 0}
+          enviarPorTelegram={enviarExtractoPorTelegram}
+        />
       </Section>
 
       {/* ---------- Movimientos ---------- */}

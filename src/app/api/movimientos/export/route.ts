@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   const buffer = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
 
-  return new NextResponse(buffer, {
+  return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="movimientos.xlsx"`,
