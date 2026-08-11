@@ -30,7 +30,7 @@ export async function construirAvisoDiario(
   supabase: any,
   accountId: string,
   opciones: { forzar?: boolean } = {}
-): Promise<string | null> {
+): Promise<string> {
   const hoyISO = toISODate(new Date());
 
   const [{ data: gastos }, { data: movimientos }] = await Promise.all([

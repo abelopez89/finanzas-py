@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/server';
-import { sendTelegramBroadcast } from '@/lib/telegram';
+import { sendTelegramBroadcast, sendTelegramDocumentBroadcast } from '@/lib/telegram';
 import { construirAvisoDiario } from '@/lib/avisos';
+import { construirExtractoMensual, construirBufferExtracto } from '@/lib/extractoMensual';
+import { getPeriodosAnteriores, toISODate } from '@/lib/period';
 
 // Sin caché: cada llamada tiene que leer el estado real del día.
 export const dynamic = 'force-dynamic';
@@ -9,6 +11,10 @@ export const revalidate = 0;
 
 /**
  * Aviso diario de vencimientos por Telegram. La invoca cron-job.org.
+ *
+ * Además, el día 27 de cada mes (el día que arranca un ciclo nuevo) manda
+ * el extracto en Excel del ciclo que acaba de cerrar — no del mes
+ * calendario, sino del período 27-26 completo.
  *
  * Configuración en cron-job.org:
  *   URL:      https://<tu-dominio>.vercel.app/api/cron/notificar-vencimientos
@@ -66,31 +72,56 @@ export async function GET(request: NextRequest) {
       porCuenta.set(d.account_id, [...(porCuenta.get(d.account_id) ?? []), d.chat_id]);
     }
 
+    // Hoy es el primer día de un ciclo nuevo: el período anterior (27-26)
+    // ya cerró del todo. getPeriodosAnteriores(2) devuelve [anterior,
+    // vigente] en orden ascendente, así que el [0] es el que acaba de
+    // cerrar.
+    const esInicioDeCiclo = new Date().getDate() === 27;
+    const periodoRecienCerradoISO = esInicioDeCiclo
+      ? toISODate(getPeriodosAnteriores(2)[0])
+      : null;
+
     const resumen: Array<Record<string, unknown>> = [];
 
     for (const [accountId, chatIds] of porCuenta) {
       try {
         const mensaje = await construirAvisoDiario(supabase, accountId);
-
-        // Sin vencimientos ni atrasados: no se manda nada, para que el
-        // aviso diario no se vuelva ruido que se ignora.
-        if (!mensaje) {
-          resumen.push({ accountId, enviados: 0, omitido: 'sin vencimientos' });
-          continue;
-        }
-
         const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
-        resumen.push({ accountId, enviados, fallidos });
+        resumen.push({ accountId, avisoDiario: { enviados, fallidos } });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error desconocido';
-        console.error(`Error notificando cuenta ${accountId}:`, err);
-        resumen.push({ accountId, error: message });
+        console.error(`Error con aviso diario, cuenta ${accountId}:`, err);
+        resumen.push({ accountId, avisoDiario: { error: message } });
+      }
+
+      if (periodoRecienCerradoISO) {
+        try {
+          const extracto = await construirExtractoMensual(accountId, periodoRecienCerradoISO);
+          const buffer = construirBufferExtracto(extracto);
+          const caption =
+            `<b>Extracto — ${extracto.periodoLabel}</b>\n` +
+            `Saldo anterior: ₲ ${extracto.saldoAnterior.toLocaleString('es-PY')}\n` +
+            `Saldo final: ₲ ${extracto.saldoFinal.toLocaleString('es-PY')}`;
+
+          const { enviados, fallidos } = await sendTelegramDocumentBroadcast(
+            chatIds,
+            buffer,
+            `extracto_${periodoRecienCerradoISO}.xlsx`,
+            caption
+          );
+          resumen.push({ accountId, extractoMensual: { enviados, fallidos } });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Error desconocido';
+          console.error(`Error con extracto mensual, cuenta ${accountId}:`, err);
+          resumen.push({ accountId, extractoMensual: { error: message } });
+        }
       }
     }
 
     return NextResponse.json({
       ok: true,
       ejecutado: new Date().toISOString(),
+      esInicioDeCiclo,
       cuentas: resumen.length,
       resumen,
     });

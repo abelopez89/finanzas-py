@@ -50,7 +50,17 @@ export async function construirExtractoMensual(
 
   const todos = movimientos ?? [];
   const anteriores = todos.filter((m) => m.fecha < periodoISO);
-  const delPeriodo = todos.filter((m) => m.fecha >= periodoISO && m.fecha <= finISO);
+  const delPeriodo = todos
+    .filter((m) => m.fecha >= periodoISO && m.fecha <= finISO)
+    // Dentro del mismo día, los ingresos van antes que los egresos: así el
+    // saldo corrido no muestra un sobregiro que en la realidad nunca
+    // ocurrió (la plata entró y salió el mismo día, en ese orden).
+    .sort((a, b) => {
+      if (a.fecha !== b.fecha) return a.fecha.localeCompare(b.fecha);
+      const aEsEgreso = a.tipo === 'egreso' ? 1 : 0;
+      const bEsEgreso = b.tipo === 'egreso' ? 1 : 0;
+      return aEsEgreso - bEsEgreso;
+    });
 
   const saldoAnterior = calcularSaldoFondo(anteriores);
 
