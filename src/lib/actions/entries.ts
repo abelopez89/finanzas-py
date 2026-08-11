@@ -47,14 +47,19 @@ export async function cambiarEstadoGasto(formData: FormData) {
   const id = String(formData.get('id'));
   const nuevoEstado = String(formData.get('nuevo_estado'));
   const path = String(formData.get('_path') || '/mes-actual');
+  const fechaElegida = String(formData.get('fecha') || '');
 
   const supabase = createSupabaseServerClient();
   const { data: entry } = await supabase.from('expense_entries').select('*').eq('id', id).single();
   if (!entry) return;
 
   const hoy = new Date().toISOString().slice(0, 10);
+  // Si se indicó una fecha (ej: se está cargando con atraso algo que en
+  // realidad pasó otro día), se usa esa. Si no, "hoy".
+  const fecha = fechaElegida || hoy;
+
   const updates: Record<string, unknown> = { estado: nuevoEstado };
-  updates.fecha_pago = nuevoEstado === 'pagado' ? hoy : null;
+  updates.fecha_pago = nuevoEstado === 'pagado' ? fecha : null;
 
   await supabase.from('expense_entries').update(updates).eq('id', id);
 
@@ -76,7 +81,7 @@ export async function cambiarEstadoGasto(formData: FormData) {
         account_id: entry.account_id,
         tipo: 'egreso',
         monto: entry.monto,
-        fecha: hoy,
+        fecha,
         referencia_tipo: 'expense_entries',
         referencia_id: id,
         descripcion: entry.nombre,
@@ -98,14 +103,17 @@ export async function cambiarEstadoIngreso(formData: FormData) {
   const id = String(formData.get('id'));
   const nuevoEstado = String(formData.get('nuevo_estado'));
   const path = String(formData.get('_path') || '/mes-actual');
+  const fechaElegida = String(formData.get('fecha') || '');
 
   const supabase = createSupabaseServerClient();
   const { data: entry } = await supabase.from('income_entries').select('*').eq('id', id).single();
   if (!entry) return;
 
   const hoy = new Date().toISOString().slice(0, 10);
+  const fecha = fechaElegida || hoy;
+
   const updates: Record<string, unknown> = { estado: nuevoEstado };
-  updates.fecha_aplicacion = nuevoEstado === 'confirmado' ? hoy : null;
+  updates.fecha_aplicacion = nuevoEstado === 'confirmado' ? fecha : null;
 
   await supabase.from('income_entries').update(updates).eq('id', id);
 
@@ -122,7 +130,7 @@ export async function cambiarEstadoIngreso(formData: FormData) {
         account_id: entry.account_id,
         tipo: 'ingreso',
         monto: entry.monto,
-        fecha: hoy,
+        fecha,
         referencia_tipo: 'income_entries',
         referencia_id: id,
         descripcion: entry.nombre,

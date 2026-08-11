@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { calcularSaldoFondo } from '@/lib/fund';
 import { getFinPeriodo, toISODate, formatPeriodoLabel } from '@/lib/period';
+import { formatearColumnaMiles } from '@/lib/xlsxFormato';
 
 const TIPO_LABEL: Record<string, string> = {
   ingreso: 'Ingreso',
@@ -103,6 +104,9 @@ export function construirBufferExtracto(extracto: ExtractoMensual): Buffer {
 
   const hoja = XLSX.utils.json_to_sheet(filas);
   hoja['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 32 }, { wch: 15 }, { wch: 15 }];
+  // Monto (índice 3) y Saldo (índice 4): separador de miles.
+  formatearColumnaMiles(hoja, 3, filas.length);
+  formatearColumnaMiles(hoja, 4, filas.length);
 
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, 'Extracto mensual');

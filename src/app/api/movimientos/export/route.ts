@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { getMovimientosUnificados, type FiltrosMovimientos } from '@/lib/movimientos';
 import { toISODate } from '@/lib/period';
+import { formatearColumnaMiles } from '@/lib/xlsxFormato';
 
 export async function GET(request: NextRequest) {
   const accountId = await getCurrentAccountId();
@@ -33,6 +34,8 @@ export async function GET(request: NextRequest) {
 
   const hoja = XLSX.utils.json_to_sheet(filas);
   hoja['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 15 }];
+  // Columna Monto (índice 5, la última): separador de miles.
+  formatearColumnaMiles(hoja, 5, filas.length);
 
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, 'Movimientos');

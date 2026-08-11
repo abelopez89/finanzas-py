@@ -6,7 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
-import { formatPeriodoCorto, estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
+import { formatPeriodoCorto, estaVencido, estaPorVencer, diasParaVencer, toISODate } from '@/lib/period';
 
 type Gasto = {
   id: string;
@@ -80,25 +80,44 @@ export default function GastosEntriesTable({
   }, [gastos, busqueda]);
 
   const total = filtrados.reduce((a, g) => a + Number(g.monto), 0);
+  const hoyISO = toISODate(new Date());
 
   const periodoLabel = (p: string) => formatPeriodoCorto(new Date(`${p}T00:00:00Z`));
 
   const Acciones = ({ g, compacto }: { g: Gasto; compacto?: boolean }) => (
     <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
       {g.estado === 'pendiente' && (
-        <form action={cambiarEstadoGasto}>
+        <form action={cambiarEstadoGasto} className="flex items-center gap-1">
           <input type="hidden" name="id" value={g.id} />
           <input type="hidden" name="_path" value="/mes-actual" />
           <input type="hidden" name="nuevo_estado" value="rescatado" />
-          <button className="btn-row bg-ochre-50 text-ochre-700 hover:bg-ochre-100">Rescatar</button>
+          <input
+            type="date"
+            name="fecha"
+            defaultValue={hoyISO}
+            title="Día en que realmente se rescató"
+            className="field-sm w-[128px]"
+          />
+          <button className="btn-row shrink-0 bg-ochre-50 text-ochre-700 hover:bg-ochre-100">
+            Rescatar
+          </button>
         </form>
       )}
       {g.estado !== 'pagado' && (
-        <form action={cambiarEstadoGasto}>
+        <form action={cambiarEstadoGasto} className="flex items-center gap-1">
           <input type="hidden" name="id" value={g.id} />
           <input type="hidden" name="_path" value="/mes-actual" />
           <input type="hidden" name="nuevo_estado" value="pagado" />
-          <button className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100">Pagar</button>
+          {g.estado === 'pendiente' && (
+            <input
+              type="date"
+              name="fecha"
+              defaultValue={hoyISO}
+              title="Día en que realmente se pagó"
+              className="field-sm w-[128px]"
+            />
+          )}
+          <button className="btn-row shrink-0 bg-pine-50 text-pine-700 hover:bg-pine-100">Pagar</button>
         </form>
       )}
       {g.estado !== 'pendiente' && (
