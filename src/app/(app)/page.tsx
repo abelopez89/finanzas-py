@@ -11,7 +11,7 @@ import {
   fechaDeEntry,
 } from '@/lib/period';
 import BarChartIngresosEgresos from '@/components/BarChartIngresosEgresos';
-import PieChartCategorias from '@/components/PieChartCategorias';
+import CategoriaBarras from '@/components/CategoriaBarras';
 import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import { Section, EmptyState, Aviso } from '@/components/ui/Layout';
@@ -250,7 +250,7 @@ export default async function DashboardPage() {
       <Section titulo="Gastos del período por categoría">
         <div className="card p-3 sm:p-4">
           {categoriaChartData.length > 0 ? (
-            <PieChartCategorias data={categoriaChartData} />
+            <CategoriaBarras data={categoriaChartData} />
           ) : (
             <EmptyState mensaje="Todavía no hay gastos categorizados en este período." />
           )}
