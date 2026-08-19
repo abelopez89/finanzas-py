@@ -10,6 +10,7 @@ import {
 } from '@/lib/period';
 import PrevisionesSimulador, { type FilaPrevision } from '@/components/PrevisionesSimulador';
 import { PageHeader, Aviso } from '@/components/ui/Layout';
+import { plantillasVigentes } from '@/lib/vigencias';
 
 export default async function PrevisionesPage() {
   const accountId = await getCurrentAccountId();
@@ -34,6 +35,8 @@ export default async function PrevisionesPage() {
     { data: ingresoTemplates },
     { data: extrasGastoFuturos },
     { data: extrasIngresoFuturos },
+    { data: vigenciasGasto },
+    { data: vigenciasIngreso },
   ] = await Promise.all([
     supabase.from('fund_movements').select('tipo, monto').eq('account_id', accountId),
     supabase
@@ -48,8 +51,10 @@ export default async function PrevisionesPage() {
       .eq('account_id', accountId)
       .eq('periodo', periodoActualISO)
       .eq('estado', 'pendiente'),
-    supabase.from('expense_templates').select('monto').eq('account_id', accountId).eq('activo', true),
-    supabase.from('income_templates').select('monto').eq('account_id', accountId).eq('activo', true),
+    // Se traen todas las plantillas y sus vigencias: el monto y si aplica
+    // se resuelven período por período, no una sola vez.
+    supabase.from('expense_templates').select('id, monto, activo').eq('account_id', accountId),
+    supabase.from('income_templates').select('id, monto, activo').eq('account_id', accountId),
     supabase
       .from('expense_entries')
       .select('monto, periodo')
@@ -64,13 +69,26 @@ export default async function PrevisionesPage() {
       .eq('es_extra', true)
       .eq('estado', 'pendiente')
       .gt('periodo', periodoActualISO),
+    supabase.from('expense_template_vigencias').select('*').eq('account_id', accountId),
+    supabase.from('income_template_vigencias').select('*').eq('account_id', accountId),
   ]);
 
   const saldoActual = calcularSaldoFondo(movimientos ?? []);
   const gastosPendientes = (gastosPendientesActual ?? []).reduce((a, g) => a + Number(g.monto), 0);
   const ingresosPendientes = (ingresosPendientesActual ?? []).reduce((a, i) => a + Number(i.monto), 0);
-  const totalGastosTemplate = (gastoTemplates ?? []).reduce((a, t) => a + Number(t.monto), 0);
-  const totalIngresosTemplate = (ingresoTemplates ?? []).reduce((a, t) => a + Number(t.monto), 0);
+  // Totales por período, resolviendo la vigencia de cada plantilla en ese
+  // momento: así un aumento programado o un gasto estacional se reflejan
+  // solo desde el período que corresponde.
+  const totalGastosEn = (periodoISO: string) =>
+    plantillasVigentes(gastoTemplates ?? [], vigenciasGasto ?? [], periodoISO).reduce(
+      (a, t) => a + t.montoVigente,
+      0
+    );
+  const totalIngresosEn = (periodoISO: string) =>
+    plantillasVigentes(ingresoTemplates ?? [], vigenciasIngreso ?? [], periodoISO).reduce(
+      (a, t) => a + t.montoVigente,
+      0
+    );
 
   const extraGastoPorPeriodo = new Map<string, number>();
   for (const e of extrasGastoFuturos ?? []) {
@@ -105,8 +123,8 @@ export default async function PrevisionesPage() {
         periodoISO: key,
         label: formatPeriodoCorto(p),
         labelLargo: formatPeriodoLabel(p),
-        ingresos: totalIngresosTemplate + extraIngresos,
-        gastos: totalGastosTemplate + extraGastos,
+        ingresos: totalIngresosEn(key) + extraIngresos,
+        gastos: totalGastosEn(key) + extraGastos,
         tieneExtra: extraGastos > 0 || extraIngresos > 0,
       };
     }),

@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { getInicioPeriodoActual, toISODate } from '@/lib/period';
 import { revalidatePath } from 'next/cache';
+import { plantillasVigentes } from '@/lib/vigencias';
 
 function diaDeFecha(fechaISO: string): number {
   return Number(fechaISO.slice(8, 10));
@@ -158,17 +159,24 @@ export async function cambiarEstadoIngreso(formData: FormData) {
 export async function generarMovimientosParaPeriodo(accountId: string, periodo: string) {
   const supabase = createSupabaseServerClient();
 
-  const [{ data: plantillasGasto }, { data: existentesGasto }] = await Promise.all([
-    supabase.from('expense_templates').select('*').eq('account_id', accountId).eq('activo', true),
+  const [
+    { data: plantillasGasto },
+    { data: existentesGasto },
+    { data: vigenciasGasto },
+  ] = await Promise.all([
+    // Se traen TODAS las plantillas (no solo activo=true): una regla de
+    // vigencia puede reactivar una plantilla que está apagada por defecto.
+    supabase.from('expense_templates').select('*').eq('account_id', accountId),
     supabase
       .from('expense_entries')
       .select('template_id')
       .eq('account_id', accountId)
       .eq('periodo', periodo),
+    supabase.from('expense_template_vigencias').select('*').eq('account_id', accountId),
   ]);
   const yaCreadosGasto = new Set((existentesGasto ?? []).map((e) => e.template_id));
 
-  const nuevosGastos = (plantillasGasto ?? [])
+  const nuevosGastos = plantillasVigentes(plantillasGasto ?? [], vigenciasGasto ?? [], periodo)
     .filter((t) => !yaCreadosGasto.has(t.id))
     .map((t) => ({
       account_id: accountId,
@@ -177,24 +185,29 @@ export async function generarMovimientosParaPeriodo(accountId: string, periodo: 
       nombre: t.nombre,
       periodo,
       dia: t.dia_mes,
-      monto: t.monto,
+      monto: t.montoVigente,
       payment_method_id: t.payment_method_id,
       category_id: t.category_id,
       estado: 'pendiente',
     }));
   if (nuevosGastos.length) await supabase.from('expense_entries').insert(nuevosGastos);
 
-  const [{ data: plantillasIngreso }, { data: existentesIngreso }] = await Promise.all([
-    supabase.from('income_templates').select('*').eq('account_id', accountId).eq('activo', true),
+  const [
+    { data: plantillasIngreso },
+    { data: existentesIngreso },
+    { data: vigenciasIngreso },
+  ] = await Promise.all([
+    supabase.from('income_templates').select('*').eq('account_id', accountId),
     supabase
       .from('income_entries')
       .select('template_id')
       .eq('account_id', accountId)
       .eq('periodo', periodo),
+    supabase.from('income_template_vigencias').select('*').eq('account_id', accountId),
   ]);
   const yaCreadosIngreso = new Set((existentesIngreso ?? []).map((e) => e.template_id));
 
-  const nuevosIngresos = (plantillasIngreso ?? [])
+  const nuevosIngresos = plantillasVigentes(plantillasIngreso ?? [], vigenciasIngreso ?? [], periodo)
     .filter((t) => !yaCreadosIngreso.has(t.id))
     .map((t) => ({
       account_id: accountId,
@@ -203,7 +216,7 @@ export async function generarMovimientosParaPeriodo(accountId: string, periodo: 
       nombre: t.nombre,
       periodo,
       dia: t.dia_mes,
-      monto: t.monto,
+      monto: t.montoVigente,
       estado: 'pendiente',
     }));
   if (nuevosIngresos.length) await supabase.from('income_entries').insert(nuevosIngresos);
