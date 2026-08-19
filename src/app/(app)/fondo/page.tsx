@@ -10,6 +10,8 @@ import type { ResultadoPrueba } from '@/components/TestTelegramButton';
 import MontoInput from '@/components/MontoInput';
 import Money from '@/components/ui/Money';
 import MovimientosList from '@/components/MovimientosList';
+import ChequeosHistorial from '@/components/ChequeosHistorial';
+import Paginador from '@/components/ui/Paginador';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
 import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
 import { revalidatePath } from 'next/cache';
@@ -130,7 +132,13 @@ async function enviarExtractoPorTelegram(
   }
 }
 
-export default async function FondoPage({ searchParams }: { searchParams: FiltrosMovimientos }) {
+const POR_PAGINA = 25;
+
+export default async function FondoPage({
+  searchParams,
+}: {
+  searchParams: FiltrosMovimientos & { pagina?: string };
+}) {
   const accountId = await getCurrentAccountId();
   const supabase = createSupabaseServerClient();
 
@@ -150,7 +158,7 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
         .select('*')
         .eq('account_id', accountId)
         .order('fecha', { ascending: false })
-        .limit(6),
+        .limit(24),
       getMovimientosUnificados(accountId, searchParams),
       supabase
         .from('telegram_recipients')
@@ -164,6 +172,14 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
   const totalIngresos = movimientos
     .filter((m) => m.tipo === 'Ingreso')
     .reduce((a, m) => a + m.monto, 0);
+
+  const paginaActual = Math.max(1, Number(searchParams.pagina) || 1);
+  const totalPaginas = Math.max(1, Math.ceil(movimientos.length / POR_PAGINA));
+  const paginaSegura = Math.min(paginaActual, totalPaginas);
+  const movimientosPagina = movimientos.slice(
+    (paginaSegura - 1) * POR_PAGINA,
+    paginaSegura * POR_PAGINA
+  );
 
   const periodosDisponibles = getPeriodosAnteriores(12)
     .slice()
@@ -182,23 +198,19 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
       <PageHeader titulo="Fondo mutuo" />
 
       {/* ---------- Saldo ---------- */}
-      <section className="mb-6 overflow-hidden rounded-card bg-ink px-5 py-6 text-white sm:px-7 sm:py-8">
+      <section className="mb-6 overflow-hidden rounded-card bg-ink px-5 py-5 text-white sm:px-6">
         <p className="text-[11px] uppercase tracking-[0.14em] text-ink-300">Saldo actual</p>
-        <p className="mt-2 font-mono text-[34px] font-semibold leading-none tracking-tight sm:text-[44px]">
+        <p className="mt-1.5 font-mono text-[32px] font-semibold leading-none tracking-tight sm:text-[38px]">
           <span className="mr-2 text-[0.5em] font-normal text-ink-300">₲</span>
           {new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(Math.round(saldoActual))}
-        </p>
-        <p className="mt-3 text-[13px] text-ink-300">
-          Calculado sobre todos los movimientos confirmados.
         </p>
       </section>
 
       {/* ---------- Registrar saldo real / interés ---------- */}
       <Section titulo="Registrar saldo real">
         <div className="card p-4">
-          <p className="mb-4 text-sm text-ink-500">
-            Ingresá el saldo que muestra tu banco hoy. La diferencia contra el saldo calculado se
-            registra como interés generado.
+          <p className="mb-3 text-sm text-ink-500">
+            La diferencia contra el saldo calculado se registra como interés.
           </p>
           <form action={registrarChequeoSaldo} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
             <div>
@@ -223,34 +235,8 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
             <button className="btn-primary">Registrar</button>
           </form>
 
-          {(chequeos ?? []).length > 0 && (
-            <div className="mt-5 border-t border-line pt-4">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
-                Últimos registros
-              </p>
-              <ul className="space-y-2">
-                {(chequeos ?? []).map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-mono text-[13px] text-ink-500">{c.fecha}</span>
-                    <span className="flex-1 truncate text-right text-ink-400">
-                      informado <Money value={c.monto_informado} size="sm" className="text-ink-500" />
-                    </span>
-                    <span
-                      className={`shrink-0 font-medium ${
-                        Number(c.interes_calculado) >= 0 ? 'text-pine-700' : 'text-brick-600'
-                      }`}
-                    >
-                      <Money
-                        value={Math.abs(Number(c.interes_calculado))}
-                        signo={Number(c.interes_calculado) >= 0 ? 'ingreso' : 'egreso'}
-                        size="sm"
-                      />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <ChequeosHistorial chequeos={chequeos ?? []} />
+
         </div>
       </Section>
 
@@ -265,15 +251,25 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
 
       {/* ---------- Movimientos ---------- */}
       <Section titulo="Movimientos confirmados">
-        <div className="mb-3 grid grid-cols-2 gap-3">
-          <div className="card p-3.5">
-            <p className="text-[11px] uppercase tracking-wide text-ink-400">Egresos</p>
-            <Money value={totalGastos} className="mt-1 block font-semibold text-brick-600" />
-          </div>
-          <div className="card p-3.5">
-            <p className="text-[11px] uppercase tracking-wide text-ink-400">Ingresos</p>
-            <Money value={totalIngresos} className="mt-1 block font-semibold text-pine-700" />
-          </div>
+        <div className="card mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-2 px-4 py-3">
+          <span className="text-sm text-ink-400">
+            Egresos <Money value={totalGastos} size="sm" className="font-semibold text-brick-600" />
+          </span>
+          <span className="text-sm text-ink-400">
+            Ingresos{' '}
+            <Money value={totalIngresos} size="sm" className="font-semibold text-pine-700" />
+          </span>
+          <span className="text-sm text-ink-400">
+            Neto{' '}
+            <Money
+              value={Math.abs(totalIngresos - totalGastos)}
+              signo={totalIngresos - totalGastos >= 0 ? 'ingreso' : 'egreso'}
+              size="sm"
+              className={`font-semibold ${
+                totalIngresos - totalGastos >= 0 ? 'text-pine-700' : 'text-brick-600'
+              }`}
+            />
+          </span>
         </div>
 
         <FiltrosPanel hayFiltrosActivos={hayFiltros}>
@@ -356,7 +352,7 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
         </FiltrosPanel>
 
         <MovimientosList
-          movimientos={movimientos.map((m) => ({
+          movimientos={movimientosPagina.map((m) => ({
             id: m.id,
             tipo: m.tipo,
             origen: m.origen,
@@ -364,6 +360,20 @@ export default async function FondoPage({ searchParams }: { searchParams: Filtro
             fecha: toISODate(m.fecha),
             monto: m.monto,
           }))}
+        />
+
+        <Paginador
+          paginaActual={paginaSegura}
+          totalPaginas={totalPaginas}
+          totalItems={movimientos.length}
+          basePath="/fondo"
+          baseParams={{
+            q: searchParams.q,
+            tipo: searchParams.tipo,
+            origen: searchParams.origen,
+            desde: searchParams.desde,
+            hasta: searchParams.hasta,
+          }}
         />
       </Section>
     </div>

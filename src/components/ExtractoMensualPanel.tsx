@@ -19,9 +19,8 @@ export default function ExtractoMensualPanel({
 
   return (
     <div className="card p-4">
-      <p className="mb-4 text-sm text-ink-500">
-        Extracto tipo cuenta bancaria: saldo anterior al inicio del período, cada movimiento
-        confirmado sumando o restando, hasta llegar al saldo final.
+      <p className="mb-3 text-sm text-ink-500">
+        Saldo anterior, movimientos del período con saldo corrido, y saldo final.
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
