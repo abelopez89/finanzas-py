@@ -7,6 +7,7 @@ import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
 import { formatPeriodoCorto } from '@/lib/period';
+import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
 type Ingreso = {
   id: string;
@@ -17,58 +18,103 @@ type Ingreso = {
   periodo: string;
 };
 
+function Guardando() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-400">
+      <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+        <path d="M12 3a9 9 0 1 0 9 9" />
+      </svg>
+      Guardando…
+    </span>
+  );
+}
+
 export default function IngresosEntriesTable({
   ingresos,
   mostrarPeriodo = false,
+  path = '/mes-actual',
   updateIncomeEntry,
   cambiarEstadoIngreso,
   deleteIncomeEntry,
 }: {
   ingresos: Ingreso[];
   mostrarPeriodo?: boolean;
-  updateIncomeEntry: (formData: FormData) => void;
-  cambiarEstadoIngreso: (formData: FormData) => void;
-  deleteIncomeEntry: (formData: FormData) => void;
+  path?: string;
+  updateIncomeEntry: AccionServidor;
+  cambiarEstadoIngreso: AccionServidor;
+  deleteIncomeEntry: AccionServidor;
 }) {
   const [busqueda, setBusqueda] = useState('');
+  const { visibles, enCurso, ejecutar } = useFilasOptimistas(ingresos);
 
   const filtrados = useMemo(() => {
-    if (!busqueda.trim()) return ingresos;
+    if (!busqueda.trim()) return visibles;
     const q = busqueda.trim().toLowerCase();
-    return ingresos.filter((i) => i.nombre.toLowerCase().includes(q));
-  }, [ingresos, busqueda]);
+    return visibles.filter((i) => i.nombre.toLowerCase().includes(q));
+  }, [visibles, busqueda]);
 
   const total = filtrados.reduce((a, i) => a + Number(i.monto), 0);
   const periodoLabel = (p: string) => formatPeriodoCorto(new Date(`${p}T00:00:00Z`));
 
-  const Acciones = ({ i, compacto }: { i: Ingreso; compacto?: boolean }) => (
-    <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
-      {i.estado !== 'confirmado' ? (
-        <>
-          <form action={cambiarEstadoIngreso}>
-            <input type="hidden" name="id" value={i.id} />
-            <input type="hidden" name="_path" value="/mes-actual" />
-            <input type="hidden" name="nuevo_estado" value="confirmado" />
-            <button className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100">Confirmar</button>
-          </form>
-          <form action={deleteIncomeEntry}>
-            <input type="hidden" name="id" value={i.id} />
-            <input type="hidden" name="_path" value="/mes-actual" />
-            <button className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600">
+  const cambiarEstado = (i: Ingreso, nuevoEstado: string) =>
+    ejecutar(
+      i.id,
+      cambiarEstadoIngreso,
+      datosDe({ id: i.id, _path: path, nuevo_estado: nuevoEstado }),
+      { estado: nuevoEstado }
+    );
+
+  const eliminar = (i: Ingreso) =>
+    ejecutar(i.id, deleteIncomeEntry, datosDe({ id: i.id, _path: path }), { eliminado: true });
+
+  const guardar = (i: Ingreso, e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    fd.set('id', i.id);
+    fd.set('_path', path);
+    ejecutar(i.id, updateIncomeEntry, fd, {
+      dia: Number(fd.get('dia')) || i.dia,
+      monto: Number(fd.get('monto')) || 0,
+    });
+  };
+
+  const Acciones = ({ i, compacto }: { i: Ingreso; compacto?: boolean }) => {
+    const ocupado = Boolean(enCurso[i.id]);
+    return (
+      <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
+        {i.estado !== 'confirmado' ? (
+          <>
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => cambiarEstado(i, 'confirmado')}
+              className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100 disabled:opacity-50"
+            >
+              Confirmar
+            </button>
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => eliminar(i)}
+              className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50"
+            >
               Eliminar
             </button>
-          </form>
-        </>
-      ) : (
-        <form action={cambiarEstadoIngreso}>
-          <input type="hidden" name="id" value={i.id} />
-          <input type="hidden" name="_path" value="/mes-actual" />
-          <input type="hidden" name="nuevo_estado" value="pendiente" />
-          <button className="btn-row text-ink-500 hover:bg-canvas">Revertir</button>
-        </form>
-      )}
-    </div>
-  );
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => cambiarEstado(i, 'pendiente')}
+            className="btn-row text-ink-500 hover:bg-canvas disabled:opacity-50"
+          >
+            Revertir
+          </button>
+        )}
+        {ocupado && <Guardando />}
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -83,7 +129,12 @@ export default function IngresosEntriesTable({
       {/* ---------- Móvil ---------- */}
       <ul className="space-y-2 md:hidden">
         {filtrados.map((i) => (
-          <li key={`${i.id}-${i.dia}-${i.monto}-${i.estado}`} className="card flex overflow-hidden">
+          <li
+            key={i.id}
+            className={`card flex overflow-hidden transition-opacity ${
+              enCurso[i.id] ? 'opacity-60' : ''
+            }`}
+          >
             <span className={`w-1 shrink-0 ${ESTADO_BARRA[i.estado] ?? ESTADO_BARRA.pendiente}`} />
             <div className="min-w-0 flex-1 p-3.5">
               <div className="flex items-start justify-between gap-3">
@@ -103,20 +154,30 @@ export default function IngresosEntriesTable({
               </div>
 
               {i.estado !== 'confirmado' && (
-                <form action={updateIncomeEntry} className="mt-3 flex items-center gap-2">
-                  <input type="hidden" name="id" value={i.id} />
-                  <input type="hidden" name="_path" value="/mes-actual" />
+                <form onSubmit={(e) => guardar(i, e)} className="mt-3 flex items-center gap-2">
                   <input
                     name="dia"
                     type="number"
                     min={1}
                     max={31}
                     defaultValue={i.dia}
+                    key={`dia-${i.dia}`}
                     aria-label="Día"
                     className="field-sm w-16"
                   />
-                  <MontoInput name="monto" defaultValue={i.monto} className="field-sm w-full" />
-                  <button className="btn-row shrink-0 bg-canvas text-ink-700">Guardar</button>
+                  <MontoInput
+                    name="monto"
+                    defaultValue={i.monto}
+                    key={`monto-${i.monto}`}
+                    className="field-sm w-full"
+                  />
+                  <button
+                    type="submit"
+                    disabled={Boolean(enCurso[i.id])}
+                    className="btn-row shrink-0 bg-canvas text-ink-700 disabled:opacity-50"
+                  >
+                    Guardar
+                  </button>
                 </form>
               )}
 
@@ -152,8 +213,10 @@ export default function IngresosEntriesTable({
           <tbody className="divide-y divide-line">
             {filtrados.map((i) => (
               <tr
-                key={`${i.id}-${i.dia}-${i.monto}-${i.estado}`}
-                className="transition-colors hover:bg-canvas/50"
+                key={i.id}
+                className={`transition-colors hover:bg-canvas/50 ${
+                  enCurso[i.id] ? 'opacity-60' : ''
+                }`}
               >
                 <td className="px-4 py-3 align-middle font-medium text-ink">{i.nombre}</td>
                 {mostrarPeriodo && (
@@ -165,20 +228,30 @@ export default function IngresosEntriesTable({
                       Día {i.dia} · <Money value={i.monto} className="text-pine-700" />
                     </span>
                   ) : (
-                    <form action={updateIncomeEntry} className="flex items-center gap-2">
-                      <input type="hidden" name="id" value={i.id} />
-                      <input type="hidden" name="_path" value="/mes-actual" />
+                    <form onSubmit={(e) => guardar(i, e)} className="flex items-center gap-2">
                       <input
                         name="dia"
                         type="number"
                         min={1}
                         max={31}
                         defaultValue={i.dia}
+                        key={`dia-${i.dia}`}
                         aria-label="Día"
                         className="field-sm w-16"
                       />
-                      <MontoInput name="monto" defaultValue={i.monto} className="field-sm w-36" />
-                      <button className="btn-row text-pine-700 hover:bg-pine-50">Guardar</button>
+                      <MontoInput
+                        name="monto"
+                        defaultValue={i.monto}
+                        key={`monto-${i.monto}`}
+                        className="field-sm w-36"
+                      />
+                      <button
+                        type="submit"
+                        disabled={Boolean(enCurso[i.id])}
+                        className="btn-row text-pine-700 hover:bg-pine-50 disabled:opacity-50"
+                      >
+                        Guardar
+                      </button>
                     </form>
                   )}
                 </td>

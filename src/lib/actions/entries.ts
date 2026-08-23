@@ -44,6 +44,14 @@ export async function updateIncomeEntry(formData: FormData) {
 
 // ------------------------------ Cambios de estado ------------------------------
 
+/**
+ * Cambio de estado de un gasto.
+ *
+ * Antes esto eran 4 viajes SECUENCIALES a Supabase (select entry → update →
+ * select fund_movement → insert/delete). Ahora son 2: el update devuelve la
+ * fila con `.select()` y en paralelo se busca el movimiento del fondo.
+ * Sobre una conexión móvil eso es la diferencia entre ~1,2s y ~0,4s.
+ */
 export async function cambiarEstadoGasto(formData: FormData) {
   const id = String(formData.get('id'));
   const nuevoEstado = String(formData.get('nuevo_estado'));
@@ -51,18 +59,32 @@ export async function cambiarEstadoGasto(formData: FormData) {
   const fechaElegida = String(formData.get('fecha') || '');
 
   const supabase = createSupabaseServerClient();
-  const { data: entry } = await supabase.from('expense_entries').select('*').eq('id', id).single();
-  if (!entry) return;
 
   const hoy = new Date().toISOString().slice(0, 10);
   // Si se indicó una fecha (ej: se está cargando con atraso algo que en
   // realidad pasó otro día), se usa esa. Si no, "hoy".
   const fecha = fechaElegida || hoy;
 
-  const updates: Record<string, unknown> = { estado: nuevoEstado };
-  updates.fecha_pago = nuevoEstado === 'pagado' ? fecha : null;
+  const [{ data: entry }, { data: existente }] = await Promise.all([
+    supabase
+      .from('expense_entries')
+      .update({
+        estado: nuevoEstado,
+        fecha_pago: nuevoEstado === 'pagado' ? fecha : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('id, account_id, monto, nombre')
+      .maybeSingle(),
+    supabase
+      .from('fund_movements')
+      .select('id')
+      .eq('referencia_tipo', 'expense_entries')
+      .eq('referencia_id', id)
+      .maybeSingle(),
+  ]);
 
-  await supabase.from('expense_entries').update(updates).eq('id', id);
+  if (!entry) return;
 
   // La plata sale realmente del fondo en el RESCATE, no en el pago — "pagado"
   // solo confirma que esa plata (ya retirada) se usó. Por eso el movimiento
@@ -70,13 +92,6 @@ export async function cambiarEstadoGasto(formData: FormData) {
   // O "pagado" (por si se salta directo de pendiente a pagado), y no se
   // duplica ni se mueve de fecha si ya existía.
   if (nuevoEstado === 'rescatado' || nuevoEstado === 'pagado') {
-    const { data: existente } = await supabase
-      .from('fund_movements')
-      .select('id')
-      .eq('referencia_tipo', 'expense_entries')
-      .eq('referencia_id', id)
-      .maybeSingle();
-
     if (!existente) {
       await supabase.from('fund_movements').insert({
         account_id: entry.account_id,
@@ -88,16 +103,13 @@ export async function cambiarEstadoGasto(formData: FormData) {
         descripcion: entry.nombre,
       });
     }
-  } else {
-    // Se revirtió a "pendiente": el rescate se deshace, el movimiento se elimina.
-    await supabase
-      .from('fund_movements')
-      .delete()
-      .eq('referencia_tipo', 'expense_entries')
-      .eq('referencia_id', id);
+  } else if (existente) {
+    // Se revirtió a "pendiente": el rescate se deshace, el movimiento se
+    // elimina. Si no había movimiento, ni siquiera se manda el DELETE.
+    await supabase.from('fund_movements').delete().eq('id', existente.id);
   }
 
-  revalidatePath(path);
+  revalidarMesActual(path);
 }
 
 export async function cambiarEstadoIngreso(formData: FormData) {
@@ -107,25 +119,31 @@ export async function cambiarEstadoIngreso(formData: FormData) {
   const fechaElegida = String(formData.get('fecha') || '');
 
   const supabase = createSupabaseServerClient();
-  const { data: entry } = await supabase.from('income_entries').select('*').eq('id', id).single();
-  if (!entry) return;
-
   const hoy = new Date().toISOString().slice(0, 10);
   const fecha = fechaElegida || hoy;
 
-  const updates: Record<string, unknown> = { estado: nuevoEstado };
-  updates.fecha_aplicacion = nuevoEstado === 'confirmado' ? fecha : null;
-
-  await supabase.from('income_entries').update(updates).eq('id', id);
-
-  if (nuevoEstado === 'confirmado') {
-    const { data: existente } = await supabase
+  const [{ data: entry }, { data: existente }] = await Promise.all([
+    supabase
+      .from('income_entries')
+      .update({
+        estado: nuevoEstado,
+        fecha_aplicacion: nuevoEstado === 'confirmado' ? fecha : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('id, account_id, monto, nombre')
+      .maybeSingle(),
+    supabase
       .from('fund_movements')
       .select('id')
       .eq('referencia_tipo', 'income_entries')
       .eq('referencia_id', id)
-      .maybeSingle();
+      .maybeSingle(),
+  ]);
 
+  if (!entry) return;
+
+  if (nuevoEstado === 'confirmado') {
     if (!existente) {
       await supabase.from('fund_movements').insert({
         account_id: entry.account_id,
@@ -137,32 +155,65 @@ export async function cambiarEstadoIngreso(formData: FormData) {
         descripcion: entry.nombre,
       });
     }
-  } else {
-    await supabase
-      .from('fund_movements')
-      .delete()
-      .eq('referencia_tipo', 'income_entries')
-      .eq('referencia_id', id);
+  } else if (existente) {
+    await supabase.from('fund_movements').delete().eq('id', existente.id);
   }
 
+  revalidarMesActual(path);
+}
+
+/** Un cambio de estado mueve el saldo del fondo, así que además de la
+ * pantalla donde se hizo hay que invalidar el dashboard y el fondo. */
+function revalidarMesActual(path: string) {
   revalidatePath(path);
+  if (path !== '/') revalidatePath('/');
+  revalidatePath('/fondo');
 }
 
 // ------------------------------ Generación mensual ------------------------------
 
 /**
  * Crea los movimientos del período que todavía no existen, a partir de las
- * plantillas activas. No duplica lo que ya existe. Sin revalidatePath —
- * pensado para poder llamarse tanto desde el botón manual como
- * automáticamente al renderizar /mes-actual (ver comentario ahí).
+ * plantillas activas. No duplica lo que ya existe.
+ *
+ * Dos cosas importantes:
+ *
+ * 1) MARCADOR DE PERÍODO. Se llama en cada render de /mes-actual, pero un
+ *    período solo hace falta generarlo una vez. Ahora se consulta primero
+ *    `period_generations`: si el período ya está marcado, se sale con UNA
+ *    consulta liviana en vez de las 6 que hacía antes.
+ *
+ * 2) OMISIONES. Si el usuario borró a mano un gasto generado desde plantilla,
+ *    esa plantilla queda anotada en `entry_omisiones` para ese período y no
+ *    se vuelve a generar. Sin esto, el borrado "no funcionaba": el próximo
+ *    render lo recreaba al instante.
  */
-export async function generarMovimientosParaPeriodo(accountId: string, periodo: string) {
+export async function generarMovimientosParaPeriodo(
+  accountId: string,
+  periodo: string,
+  opciones: { forzar?: boolean } = {}
+) {
   const supabase = createSupabaseServerClient();
 
+  if (!opciones.forzar) {
+    const { data: marca } = await supabase
+      .from('period_generations')
+      .select('periodo')
+      .eq('account_id', accountId)
+      .eq('periodo', periodo)
+      .maybeSingle();
+    if (marca) return { gastosCreados: 0, ingresosCreados: 0, salteado: true };
+  }
+
+  // Las 6 consultas van juntas (antes eran dos tandas secuenciales).
   const [
     { data: plantillasGasto },
     { data: existentesGasto },
     { data: vigenciasGasto },
+    { data: plantillasIngreso },
+    { data: existentesIngreso },
+    { data: vigenciasIngreso },
+    { data: omisiones },
   ] = await Promise.all([
     // Se traen TODAS las plantillas (no solo activo=true): una regla de
     // vigencia puede reactivar una plantilla que está apagada por defecto.
@@ -173,11 +224,31 @@ export async function generarMovimientosParaPeriodo(accountId: string, periodo: 
       .eq('account_id', accountId)
       .eq('periodo', periodo),
     supabase.from('expense_template_vigencias').select('*').eq('account_id', accountId),
+    supabase.from('income_templates').select('*').eq('account_id', accountId),
+    supabase
+      .from('income_entries')
+      .select('template_id')
+      .eq('account_id', accountId)
+      .eq('periodo', periodo),
+    supabase.from('income_template_vigencias').select('*').eq('account_id', accountId),
+    supabase
+      .from('entry_omisiones')
+      .select('tipo, template_id')
+      .eq('account_id', accountId)
+      .eq('periodo', periodo),
   ]);
+
+  const omitidosGasto = new Set(
+    (omisiones ?? []).filter((o) => o.tipo === 'gasto').map((o) => o.template_id)
+  );
+  const omitidosIngreso = new Set(
+    (omisiones ?? []).filter((o) => o.tipo === 'ingreso').map((o) => o.template_id)
+  );
+
   const yaCreadosGasto = new Set((existentesGasto ?? []).map((e) => e.template_id));
 
   const nuevosGastos = plantillasVigentes(plantillasGasto ?? [], vigenciasGasto ?? [], periodo)
-    .filter((t) => !yaCreadosGasto.has(t.id))
+    .filter((t) => !yaCreadosGasto.has(t.id) && !omitidosGasto.has(t.id))
     .map((t) => ({
       account_id: accountId,
       template_id: t.id,
@@ -190,25 +261,11 @@ export async function generarMovimientosParaPeriodo(accountId: string, periodo: 
       category_id: t.category_id,
       estado: 'pendiente',
     }));
-  if (nuevosGastos.length) await supabase.from('expense_entries').insert(nuevosGastos);
 
-  const [
-    { data: plantillasIngreso },
-    { data: existentesIngreso },
-    { data: vigenciasIngreso },
-  ] = await Promise.all([
-    supabase.from('income_templates').select('*').eq('account_id', accountId),
-    supabase
-      .from('income_entries')
-      .select('template_id')
-      .eq('account_id', accountId)
-      .eq('periodo', periodo),
-    supabase.from('income_template_vigencias').select('*').eq('account_id', accountId),
-  ]);
   const yaCreadosIngreso = new Set((existentesIngreso ?? []).map((e) => e.template_id));
 
   const nuevosIngresos = plantillasVigentes(plantillasIngreso ?? [], vigenciasIngreso ?? [], periodo)
-    .filter((t) => !yaCreadosIngreso.has(t.id))
+    .filter((t) => !yaCreadosIngreso.has(t.id) && !omitidosIngreso.has(t.id))
     .map((t) => ({
       account_id: accountId,
       template_id: t.id,
@@ -219,19 +276,52 @@ export async function generarMovimientosParaPeriodo(accountId: string, periodo: 
       monto: t.montoVigente,
       estado: 'pendiente',
     }));
-  if (nuevosIngresos.length) await supabase.from('income_entries').insert(nuevosIngresos);
+
+  await Promise.all([
+    nuevosGastos.length
+      ? supabase.from('expense_entries').insert(nuevosGastos)
+      : Promise.resolve(null),
+    nuevosIngresos.length
+      ? supabase.from('income_entries').insert(nuevosIngresos)
+      : Promise.resolve(null),
+    // Se marca el período como generado para que las próximas visitas
+    // salteen todo este bloque.
+    supabase
+      .from('period_generations')
+      .upsert({ account_id: accountId, periodo }, { onConflict: 'account_id,periodo' }),
+  ]);
 
   return { gastosCreados: nuevosGastos.length, ingresosCreados: nuevosIngresos.length };
 }
 
-/** Botón manual: mismo efecto, pero revalida la página (para cuando aparecen
- * plantillas nuevas después de que el mes ya se generó). */
+/** Botón manual: fuerza la pasada completa aunque el período ya esté
+ * marcado (para cuando aparecen plantillas nuevas después). Respeta las
+ * omisiones: lo que se borró a mano sigue borrado. */
 export async function generarMovimientosDelMes() {
   const accountId = await getCurrentAccountId();
   if (!accountId) return;
 
   const periodo = toISODate(getInicioPeriodoActual());
-  await generarMovimientosParaPeriodo(accountId, periodo);
+  await generarMovimientosParaPeriodo(accountId, periodo, { forzar: true });
+  revalidatePath('/mes-actual');
+}
+
+/** Deshace todas las omisiones del período vigente y vuelve a generar:
+ * trae de vuelta los movimientos regulares que se habían borrado. */
+export async function restaurarEliminadosDelMes() {
+  const accountId = await getCurrentAccountId();
+  if (!accountId) return;
+
+  const periodo = toISODate(getInicioPeriodoActual());
+  const supabase = createSupabaseServerClient();
+
+  await supabase
+    .from('entry_omisiones')
+    .delete()
+    .eq('account_id', accountId)
+    .eq('periodo', periodo);
+
+  await generarMovimientosParaPeriodo(accountId, periodo, { forzar: true });
   revalidatePath('/mes-actual');
 }
 
@@ -299,6 +389,7 @@ export async function deleteExpenseExtra(formData: FormData) {
   // Solo se puede borrar si todavía no generó movimiento en el fondo.
   await supabase.from('expense_entries').delete().eq('id', id).eq('estado', 'pendiente');
   revalidatePath('/extras');
+  revalidatePath('/previsiones');
 }
 
 export async function deleteIncomeExtra(formData: FormData) {
@@ -306,6 +397,7 @@ export async function deleteIncomeExtra(formData: FormData) {
   const supabase = createSupabaseServerClient();
   await supabase.from('income_entries').delete().eq('id', id).eq('estado', 'pendiente');
   revalidatePath('/extras');
+  revalidatePath('/previsiones');
 }
 
 /**
@@ -405,19 +497,67 @@ export async function cambiarDiaMasivo(formData: FormData) {
  * Borra un movimiento generado (regular o extra), solo si sigue en estado
  * "pendiente" — así nunca se borra algo que ya afectó el fondo. NO toca la
  * plantilla de la que se generó (son filas independientes).
+ *
+ * FIX: si el movimiento venía de una plantilla, además se anota la omisión.
+ * /mes-actual regenera desde plantillas en cada render, así que sin esta
+ * anotación el gasto borrado reaparecía enseguida y el borrado parecía no
+ * funcionar. El DELETE devuelve la fila con `.select()`, o sea que sigue
+ * siendo un solo viaje para borrar + averiguar de qué plantilla venía.
  */
 export async function deleteExpenseEntry(formData: FormData) {
   const id = String(formData.get('id'));
   const path = String(formData.get('_path') || '/mes-actual');
   const supabase = createSupabaseServerClient();
-  await supabase.from('expense_entries').delete().eq('id', id).eq('estado', 'pendiente');
+
+  const { data: borrado } = await supabase
+    .from('expense_entries')
+    .delete()
+    .eq('id', id)
+    .eq('estado', 'pendiente')
+    .select('account_id, template_id, periodo')
+    .maybeSingle();
+
+  if (borrado?.template_id) {
+    await supabase.from('entry_omisiones').upsert(
+      {
+        account_id: borrado.account_id,
+        tipo: 'gasto',
+        template_id: borrado.template_id,
+        periodo: borrado.periodo,
+      },
+      { onConflict: 'account_id,tipo,template_id,periodo' }
+    );
+  }
+
   revalidatePath(path);
+  revalidatePath('/previsiones');
 }
 
 export async function deleteIncomeEntry(formData: FormData) {
   const id = String(formData.get('id'));
   const path = String(formData.get('_path') || '/mes-actual');
   const supabase = createSupabaseServerClient();
-  await supabase.from('income_entries').delete().eq('id', id).eq('estado', 'pendiente');
+
+  const { data: borrado } = await supabase
+    .from('income_entries')
+    .delete()
+    .eq('id', id)
+    .eq('estado', 'pendiente')
+    .select('account_id, template_id, periodo')
+    .maybeSingle();
+
+  if (borrado?.template_id) {
+    await supabase.from('entry_omisiones').upsert(
+      {
+        account_id: borrado.account_id,
+        tipo: 'ingreso',
+        template_id: borrado.template_id,
+        periodo: borrado.periodo,
+      },
+      { onConflict: 'account_id,tipo,template_id,periodo' }
+    );
+  }
+
   revalidatePath(path);
+  revalidatePath('/previsiones');
 }

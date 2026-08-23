@@ -118,3 +118,43 @@ npm run dev
 
 ### 6. Vincular un segundo correo Gmail a la misma cuenta
 Una vez logueado con el primer correo, desde Configuración (se habilita en Etapa 2) se puede invocar `linkIdentity` para sumar el segundo Gmail a la misma cuenta familiar, sin crear una cuenta separada.
+
+---
+
+## Optimizaciones de performance (agosto 2026)
+
+### PASO OBLIGATORIO antes de desplegar esta versión
+
+Ejecutar en el SQL Editor de Supabase:
+
+```
+supabase/optimizaciones_performance.sql
+```
+
+Crea dos tablas nuevas (`entry_omisiones`, `period_generations`) y varios
+índices. Es idempotente. Sin este script la app sigue funcionando, pero el
+borrado de movimientos regulares vuelve a fallar (reaparecen) y no hay ganancia
+de velocidad en `/mes-actual`.
+
+### Qué se corrigió
+
+**Bug de eliminación.** `/mes-actual` regenera los movimientos desde las
+plantillas en cada render. Al borrar un gasto regular, el render inmediatamente
+posterior lo volvía a crear: parecía que el botón "Eliminar" no hacía nada.
+Ahora, al borrar un movimiento que vino de una plantilla, se anota la omisión en
+`entry_omisiones` y esa plantilla ya no se regenera para ese período. Si el
+borrado fue sin querer, aparece un botón "Restaurar movimientos eliminados" al
+pie de la página.
+
+**Lentitud al cambiar de estado.** Tres frentes:
+
+1. *Feedback inmediato*: los botones Rescatar / Pagar / Revertir / Eliminar
+   ahora actualizan la fila en el acto y muestran "Guardando…", en vez de dejar
+   la pantalla congelada hasta que vuelve la respuesta del servidor.
+2. *Menos viajes a la base*: un cambio de estado pasó de 4 consultas
+   secuenciales a 2 (el UPDATE devuelve la fila con `.select()` y la búsqueda
+   del movimiento del fondo va en paralelo).
+3. *Menos trabajo por render*: la generación mensual se saltea entera si el
+   período ya está marcado como generado — de 6 consultas a 1 liviana en cada
+   visita a `/mes-actual`. La autenticación se memoiza por request en vez de
+   consultarse 2-3 veces.

@@ -17,7 +17,9 @@ import {
   deleteExpenseEntry,
   deleteIncomeEntry,
   cambiarDiaMasivo,
+  restaurarEliminadosDelMes,
 } from '@/lib/actions/entries';
+import { COLS_GASTO, COLS_INGRESO } from '@/lib/columns';
 import GastosEntriesTable from '@/components/GastosEntriesTable';
 import IngresosEntriesTable from '@/components/IngresosEntriesTable';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
@@ -66,7 +68,7 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
   let gastosQuery = accountId
     ? supabase
         .from('expense_entries')
-        .select('*, payment_methods(nombre)')
+        .select(COLS_GASTO)
         .eq('account_id', accountId)
         .eq('periodo', periodo)
         .eq('es_extra', false)
@@ -74,7 +76,7 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
   let ingresosQuery = accountId
     ? supabase
         .from('income_entries')
-        .select('*')
+        .select(COLS_INGRESO)
         .eq('account_id', accountId)
         .eq('periodo', periodo)
         .eq('es_extra', false)
@@ -113,20 +115,21 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     { data: ingresosAnterioresRaw },
     { data: metodos },
     { data: gastosDelPeriodoSinFiltrar },
+    { data: omisionesDelPeriodo },
   ] = accountId
     ? await Promise.all([
         gastosQuery!,
         ingresosQuery!,
         supabase
           .from('expense_entries')
-          .select('*, payment_methods(nombre)')
+          .select(COLS_GASTO)
           .eq('account_id', accountId)
           .eq('es_extra', false)
           .neq('estado', 'pagado')
           .lt('periodo', periodo),
         supabase
           .from('income_entries')
-          .select('*')
+          .select(COLS_INGRESO)
           .eq('account_id', accountId)
           .eq('es_extra', false)
           .neq('estado', 'confirmado')
@@ -139,8 +142,16 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
           .eq('account_id', accountId)
           .eq('periodo', periodo)
           .eq('es_extra', false),
+        // Movimientos regulares que se borraron a mano en este período:
+        // se listan para poder deshacer el borrado si fue sin querer.
+        supabase
+          .from('entry_omisiones')
+          .select('id')
+          .eq('account_id', accountId)
+          .eq('periodo', periodo),
       ])
     : [
+        { data: [] as any[] },
         { data: [] as any[] },
         { data: [] as any[] },
         { data: [] as any[] },
@@ -158,6 +169,7 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
     searchParams.estado || searchParams.metodo || searchParams.dia_desde || searchParams.dia_hasta
   );
   const hayAtrasados = gastosAnteriores.length > 0 || ingresosAnteriores.length > 0;
+  const eliminadosDelPeriodo = (omisionesDelPeriodo ?? []).length;
 
   const vencidosDelPeriodo = gastos.filter(
     (g) => g.estado !== 'pagado' && estaVencido(g.periodo, g.dia)
@@ -308,13 +320,27 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
         />
       </Section>
 
-      <form action={generarMovimientosDelMes} className="mt-2">
-        <button className="btn-secondary w-full sm:w-auto">Regenerar desde plantillas</button>
-        <p className="mt-2 text-xs text-ink-400">
-          Los movimientos se generan solos al abrir un período nuevo. Usá esto si agregaste una
-          plantilla después.
-        </p>
-      </form>
+      <div className="mt-2 space-y-4">
+        <form action={generarMovimientosDelMes}>
+          <button className="btn-secondary w-full sm:w-auto">Regenerar desde plantillas</button>
+          <p className="mt-2 text-xs text-ink-400">
+            Los movimientos se generan solos al abrir un período nuevo. Usá esto si agregaste una
+            plantilla después. Lo que borraste a mano no vuelve.
+          </p>
+        </form>
+
+        {eliminadosDelPeriodo > 0 && (
+          <form action={restaurarEliminadosDelMes}>
+            <button className="btn-secondary w-full sm:w-auto">
+              Restaurar {eliminadosDelPeriodo === 1 ? 'el movimiento eliminado' : `los ${eliminadosDelPeriodo} movimientos eliminados`}
+            </button>
+            <p className="mt-2 text-xs text-ink-400">
+              En este período borraste {eliminadosDelPeriodo === 1 ? '1 movimiento generado' : `${eliminadosDelPeriodo} movimientos generados`} desde plantilla. Con esto vuelven a
+              aparecer.
+            </p>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

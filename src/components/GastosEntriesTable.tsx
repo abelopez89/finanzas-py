@@ -7,6 +7,7 @@ import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
 import { formatPeriodoCorto, estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
+import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
 type Gasto = {
   id: string;
@@ -58,68 +59,116 @@ function EtiquetaVencido() {
   );
 }
 
+/** Indicador chico de "esto se está guardando". */
+function Guardando() {
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-ink-400">
+      <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+        <path d="M12 3a9 9 0 1 0 9 9" />
+      </svg>
+      Guardando…
+    </span>
+  );
+}
+
 export default function GastosEntriesTable({
   gastos,
   mostrarPeriodo = false,
+  path = '/mes-actual',
   updateExpenseEntry,
   cambiarEstadoGasto,
   deleteExpenseEntry,
 }: {
   gastos: Gasto[];
   mostrarPeriodo?: boolean;
-  updateExpenseEntry: (formData: FormData) => void;
-  cambiarEstadoGasto: (formData: FormData) => void;
-  deleteExpenseEntry: (formData: FormData) => void;
+  path?: string;
+  updateExpenseEntry: AccionServidor;
+  cambiarEstadoGasto: AccionServidor;
+  deleteExpenseEntry: AccionServidor;
 }) {
   const [busqueda, setBusqueda] = useState('');
+  const { visibles, enCurso, ejecutar } = useFilasOptimistas(gastos);
 
   const filtrados = useMemo(() => {
-    if (!busqueda.trim()) return gastos;
+    if (!busqueda.trim()) return visibles;
     const q = busqueda.trim().toLowerCase();
-    return gastos.filter((g) => g.nombre.toLowerCase().includes(q));
-  }, [gastos, busqueda]);
+    return visibles.filter((g) => g.nombre.toLowerCase().includes(q));
+  }, [visibles, busqueda]);
 
   const total = filtrados.reduce((a, g) => a + Number(g.monto), 0);
 
   const periodoLabel = (p: string) => formatPeriodoCorto(new Date(`${p}T00:00:00Z`));
 
-  const Acciones = ({ g, compacto }: { g: Gasto; compacto?: boolean }) => (
-    <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
-      {g.estado === 'pendiente' && (
-        <form action={cambiarEstadoGasto}>
-          <input type="hidden" name="id" value={g.id} />
-          <input type="hidden" name="_path" value="/mes-actual" />
-          <input type="hidden" name="nuevo_estado" value="rescatado" />
-          <button className="btn-row bg-ochre-50 text-ochre-700 hover:bg-ochre-100">Rescatar</button>
-        </form>
-      )}
-      {g.estado !== 'pagado' && (
-        <form action={cambiarEstadoGasto}>
-          <input type="hidden" name="id" value={g.id} />
-          <input type="hidden" name="_path" value="/mes-actual" />
-          <input type="hidden" name="nuevo_estado" value="pagado" />
-          <button className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100">Pagar</button>
-        </form>
-      )}
-      {g.estado !== 'pendiente' && (
-        <form action={cambiarEstadoGasto}>
-          <input type="hidden" name="id" value={g.id} />
-          <input type="hidden" name="_path" value="/mes-actual" />
-          <input type="hidden" name="nuevo_estado" value="pendiente" />
-          <button className="btn-row text-ink-500 hover:bg-canvas">Revertir</button>
-        </form>
-      )}
-      {g.estado === 'pendiente' && (
-        <form action={deleteExpenseEntry}>
-          <input type="hidden" name="id" value={g.id} />
-          <input type="hidden" name="_path" value="/mes-actual" />
-          <button className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600">
+  const cambiarEstado = (g: Gasto, nuevoEstado: string) =>
+    ejecutar(
+      g.id,
+      cambiarEstadoGasto,
+      datosDe({ id: g.id, _path: path, nuevo_estado: nuevoEstado }),
+      { estado: nuevoEstado }
+    );
+
+  const eliminar = (g: Gasto) =>
+    ejecutar(g.id, deleteExpenseEntry, datosDe({ id: g.id, _path: path }), { eliminado: true });
+
+  const guardar = (g: Gasto, e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    fd.set('id', g.id);
+    fd.set('_path', path);
+    ejecutar(g.id, updateExpenseEntry, fd, {
+      dia: Number(fd.get('dia')) || g.dia,
+      monto: Number(fd.get('monto')) || 0,
+    });
+  };
+
+  const Acciones = ({ g, compacto }: { g: Gasto; compacto?: boolean }) => {
+    const ocupado = Boolean(enCurso[g.id]);
+    return (
+      <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
+        {g.estado === 'pendiente' && (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => cambiarEstado(g, 'rescatado')}
+            className="btn-row bg-ochre-50 text-ochre-700 hover:bg-ochre-100 disabled:opacity-50"
+          >
+            Rescatar
+          </button>
+        )}
+        {g.estado !== 'pagado' && (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => cambiarEstado(g, 'pagado')}
+            className="btn-row bg-pine-50 text-pine-700 hover:bg-pine-100 disabled:opacity-50"
+          >
+            Pagar
+          </button>
+        )}
+        {g.estado !== 'pendiente' && (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => cambiarEstado(g, 'pendiente')}
+            className="btn-row text-ink-500 hover:bg-canvas disabled:opacity-50"
+          >
+            Revertir
+          </button>
+        )}
+        {g.estado === 'pendiente' && (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => eliminar(g)}
+            className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50"
+          >
             Eliminar
           </button>
-        </form>
-      )}
-    </div>
-  );
+        )}
+        {ocupado && <Guardando />}
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -135,8 +184,10 @@ export default function GastosEntriesTable({
       <ul className="space-y-2 md:hidden">
         {filtrados.map((g) => (
           <li
-            key={`${g.id}-${g.dia}-${g.monto}-${g.estado}`}
-            className={`card flex overflow-hidden ${
+            key={g.id}
+            className={`card flex overflow-hidden transition-opacity ${
+              enCurso[g.id] ? 'opacity-60' : ''
+            } ${
               vencido(g)
                 ? 'border-brick-100 bg-brick-50/30'
                 : porVencer(g)
@@ -177,20 +228,33 @@ export default function GastosEntriesTable({
               </div>
 
               {g.estado === 'pendiente' && (
-                <form action={updateExpenseEntry} className="mt-3 flex items-center gap-2">
-                  <input type="hidden" name="id" value={g.id} />
-                  <input type="hidden" name="_path" value="/mes-actual" />
+                <form
+                  onSubmit={(e) => guardar(g, e)}
+                  className="mt-3 flex items-center gap-2"
+                >
                   <input
                     name="dia"
                     type="number"
                     min={1}
                     max={31}
                     defaultValue={g.dia}
+                    key={`dia-${g.dia}`}
                     aria-label="Día"
                     className="field-sm w-16"
                   />
-                  <MontoInput name="monto" defaultValue={g.monto} className="field-sm w-full" />
-                  <button className="btn-row shrink-0 bg-canvas text-ink-700">Guardar</button>
+                  <MontoInput
+                    name="monto"
+                    defaultValue={g.monto}
+                    key={`monto-${g.monto}`}
+                    className="field-sm w-full"
+                  />
+                  <button
+                    type="submit"
+                    disabled={Boolean(enCurso[g.id])}
+                    className="btn-row shrink-0 bg-canvas text-ink-700 disabled:opacity-50"
+                  >
+                    Guardar
+                  </button>
                 </form>
               )}
 
@@ -227,8 +291,8 @@ export default function GastosEntriesTable({
           <tbody className="divide-y divide-line">
             {filtrados.map((g) => (
               <tr
-                key={`${g.id}-${g.dia}-${g.monto}-${g.estado}`}
-                className={`transition-colors ${
+                key={g.id}
+                className={`transition-colors ${enCurso[g.id] ? 'opacity-60' : ''} ${
                   vencido(g)
                     ? 'bg-brick-50/50 hover:bg-brick-50'
                     : porVencer(g)
@@ -258,20 +322,30 @@ export default function GastosEntriesTable({
                       Día {g.dia} · <Money value={g.monto} className="text-ink" />
                     </span>
                   ) : (
-                    <form action={updateExpenseEntry} className="flex items-center gap-2">
-                      <input type="hidden" name="id" value={g.id} />
-                      <input type="hidden" name="_path" value="/mes-actual" />
+                    <form onSubmit={(e) => guardar(g, e)} className="flex items-center gap-2">
                       <input
                         name="dia"
                         type="number"
                         min={1}
                         max={31}
                         defaultValue={g.dia}
+                        key={`dia-${g.dia}`}
                         aria-label="Día"
                         className="field-sm w-16"
                       />
-                      <MontoInput name="monto" defaultValue={g.monto} className="field-sm w-36" />
-                      <button className="btn-row text-pine-700 hover:bg-pine-50">Guardar</button>
+                      <MontoInput
+                        name="monto"
+                        defaultValue={g.monto}
+                        key={`monto-${g.monto}`}
+                        className="field-sm w-36"
+                      />
+                      <button
+                        type="submit"
+                        disabled={Boolean(enCurso[g.id])}
+                        className="btn-row text-pine-700 hover:bg-pine-50 disabled:opacity-50"
+                      >
+                        Guardar
+                      </button>
                     </form>
                   )}
                 </td>

@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/supabase/account';
 import { redirect } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 
@@ -10,10 +11,9 @@ async function logout() {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getAuthUser está memoizado por request: la página que renderiza abajo
+  // reutiliza este mismo resultado en vez de volver a consultar a Supabase.
+  const user = await getAuthUser();
 
   return (
     <AppShell email={user?.email ?? undefined} logout={logout}>
