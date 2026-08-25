@@ -222,12 +222,6 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
         </div>
       )}
 
-      <CambioDiaMasivo
-        metodos={metodos ?? []}
-        gastos={gastosDelPeriodoSinFiltrar ?? []}
-        cambiarDiaMasivo={cambiarDiaMasivo}
-      />
-
       <FiltrosPanel hayFiltrosActivos={hayFiltros}>
         <form method="GET" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="col-span-2 sm:col-span-1">
@@ -321,6 +315,12 @@ export default async function MesActualPage({ searchParams }: { searchParams: Fi
       </Section>
 
       <div className="mt-2 space-y-4">
+        <CambioDiaMasivo
+          metodos={metodos ?? []}
+          gastos={gastosDelPeriodoSinFiltrar ?? []}
+          cambiarDiaMasivo={cambiarDiaMasivo}
+        />
+
         <form action={generarMovimientosDelMes}>
           <button className="btn-secondary w-full sm:w-auto">Regenerar desde plantillas</button>
           <p className="mt-2 text-xs text-ink-400">
