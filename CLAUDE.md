@@ -2,17 +2,62 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Restricciones absolutas
+
+Estas reglas no se negocian ni se relajan por conveniencia de una tarea. Ante
+cualquier duda sobre si algo cae acá dentro, preguntar antes de actuar.
+
+- **NUNCA** crear, alterar o borrar objetos fuera del esquema `finanzas_py`.
+  El proyecto de Supabase se comparte con las apps `vacamanager` e `irp-py`.
+- **NUNCA** generar SQL que toque `auth.users`, `auth.identities` ni ningún
+  otro objeto del esquema `auth`: es compartido entre las tres apps.
+- Todo `.sql` nuevo debe calificar explícitamente el esquema
+  (`finanzas_py.tabla`), incluso cuando el `search_path` lo haría innecesario.
+- **NUNCA** editar `schema.sql` ni un `.sql` ya corrido en producción.
+  Siempre un archivo nuevo e idempotente.
+- `SUPABASE_SERVICE_ROLE_KEY` solo en código server-to-server del cron.
+  Nunca en un Client Component ni en ninguna variable con prefijo
+  `NEXT_PUBLIC_`.
+- No commitear secretos, tokens ni credenciales reales. `.env.example` lleva
+  solo nombres de variables, nunca valores.
+
+## Entorno de ejecución del agente
+
+- No hay acceso a Supabase ni a las variables de entorno reales. **No intentar
+  correr migraciones, seeds ni consultas contra la base**: va a fallar y no es
+  un problema a resolver.
+- Los `.sql` los corre el humano a mano en el SQL Editor de Supabase, en orden,
+  al momento de desplegar el código que los necesita.
+- El cron diario lo dispara un servicio externo (cron-job.org) contra la URL de
+  producción. No se puede ejercitar desde un preview de Vercel ni desde el
+  sandbox; los cambios en `/api/cron/*` se verifican por lectura de código y
+  recién se prueban en producción.
+- Si la tarea agrega un `.sql`, una variable de entorno nueva o un paso en el
+  dashboard de Supabase (por ejemplo exponer un esquema), listarlo **al inicio**
+  de la descripción del PR bajo el título `PASOS MANUALES ANTES DE MERGEAR`.
+
+## Antes de cerrar cualquier tarea
+
+1. `npm run build` debe pasar. Si falla, arreglarlo antes de abrir el PR.
+2. `npm run lint` debe pasar.
+3. No hay suite de tests en este repo: la verificación funcional real la hace
+   el humano en el deploy preview de Vercel. Por eso el PR debe describir en
+   una línea qué mirar y en qué pantalla para dar por bueno el cambio.
+
 ## Qué es esto
 
 App de gestión financiera familiar en español: ingresos, gastos, plantillas
 mensuales recurrentes, control de un fondo mutuo (con cálculo de interés) y
-previsión de saldo a 12 meses. Ver `README.md` para el detalle completo de
-las etapas ya implementadas y las reglas de negocio de cada pantalla — está
-muy actualizado y conviene leerlo antes de tocar lógica de negocio.
+previsión de saldo a 12 meses.
+
+Antes de modificar reglas de negocio de una pantalla, leer la sección
+correspondiente en `README.md`, que documenta las etapas implementadas y las
+reglas de cada pantalla y se mantiene actualizado.
 
 ## Stack
 
 - Next.js 14 (App Router) + TypeScript + React 18
+- Node.js: 24.x
 - Tailwind CSS (paleta y fuentes custom en `tailwind.config.js`)
 - Supabase (Postgres + Auth con Google OAuth) vía `@supabase/ssr`
 - `date-fns` (con locale `es`) para fechas, `recharts` para gráficos, `xlsx` para exportar Excel
@@ -28,8 +73,6 @@ npm run build   # build de producción
 npm run start   # servir el build
 npm run lint    # next lint
 ```
-
-No hay suite de tests configurada en este repo.
 
 ## Supabase: cómo está armado
 
@@ -54,6 +97,7 @@ No hay suite de tests configurada en este repo.
 - RLS activado en todas las tablas: una función `finanzas_py.auth_account_ids()`
   (`SECURITY DEFINER`) devuelve las cuentas del usuario autenticado, y cada
   policy filtra `account_id in (select finanzas_py.auth_account_ids())`.
+  Toda tabla nueva nace con RLS activado y su policy siguiendo ese mismo patrón.
 - El alta de la primera cuenta y el vínculo de un segundo Gmail (`linkIdentity`)
   usan funciones `SECURITY DEFINER` (`create_account_for_user`,
   `link_email_to_my_account`) en vez de inserts directos desde el cliente,
@@ -85,6 +129,21 @@ No hay suite de tests configurada en este repo.
   (`tipo`: `ingreso | egreso | interes | saldo_inicial`).
 
 ## Arquitectura y convenciones del código
+
+### Convención de nombres
+
+El repo tiene una mezcla histórica (`expense_entries` junto a `entry_omisiones`,
+`es_extra`, `desde_periodo`). No renombrar lo existente. Para código nuevo:
+
+- Nombres de tablas y entidades: **inglés** (`expense_entries`, `fund_movements`).
+- Atributos que nombran un concepto propio del dominio y no tienen equivalente
+  natural en inglés: **español** (`vigencias`, `es_extra`, `desde_periodo`).
+- Valores de estado en base de datos: **español**, como los existentes
+  (`pendiente`, `rescatado`, `pagado`, `confirmado`).
+- Todo texto visible al usuario, mensajes de error y contenido de las
+  notificaciones de Telegram: **español**.
+- Ante la duda en una tabla ya existente, imitar el estilo de las columnas
+  vecinas antes que aplicar la regla general.
 
 ### Ciclo de facturación 27→26 (no el mes calendario)
 
