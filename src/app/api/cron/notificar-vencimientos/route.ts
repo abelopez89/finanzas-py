@@ -3,7 +3,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/server';
 import { sendTelegramBroadcast, sendTelegramDocumentBroadcast } from '@/lib/telegram';
 import { construirAvisoDiario } from '@/lib/avisos';
 import { construirExtractoMensual, construirBufferExtracto } from '@/lib/extractoMensual';
-import { getPeriodosAnteriores, toISODate } from '@/lib/period';
+import { getInicioPeriodoActual, toISODate } from '@/lib/period';
 
 // Sin caché: cada llamada tiene que leer el estado real del día.
 export const dynamic = 'force-dynamic';
@@ -73,13 +73,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Hoy es el primer día de un ciclo nuevo: el período anterior (27-26)
-    // ya cerró del todo. getPeriodosAnteriores(2) devuelve [anterior,
-    // vigente] en orden ascendente, así que el [0] es el que acaba de
-    // cerrar.
-    const esInicioDeCiclo = new Date().getDate() === 27;
-    const periodoRecienCerradoISO = esInicioDeCiclo
-      ? toISODate(getPeriodosAnteriores(2)[0])
-      : null;
+    // ya cerró del todo. Para no depender de calcular "el período vigente
+    // menos uno" (fácil de confundir con el que arranca hoy, todavía sin
+    // movimientos), se pide directo el período que contiene AYER — que por
+    // definición sigue siendo el ciclo que se acaba de cerrar.
+    const hoy = new Date();
+    const esInicioDeCiclo = hoy.getDate() === 27;
+    let periodoRecienCerradoISO: string | null = null;
+    if (esInicioDeCiclo) {
+      const ayer = new Date(hoy);
+      ayer.setDate(ayer.getDate() - 1);
+      periodoRecienCerradoISO = toISODate(getInicioPeriodoActual(ayer));
+    }
 
     const resumen: Array<Record<string, unknown>> = [];
 
