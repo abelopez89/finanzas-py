@@ -47,7 +47,21 @@ async function updateExpenseTemplate(formData: FormData) {
     .from('expense_templates')
     .update({ dia_mes, monto, payment_method_id, category_id })
     .eq('id', id);
+
+  // A diferencia del monto (que tiene vigencias y queda "congelado" en la
+  // fecha de cada movimiento), método y categoría son solo clasificación:
+  // no tiene sentido que un gasto ya generado quede con el método/categoría
+  // viejo de la plantilla. Se propaga a TODOS los gastos generados desde
+  // esta plantilla (históricos y del mes actual, sin importar el estado).
+  await supabase
+    .from('expense_entries')
+    .update({ payment_method_id, category_id })
+    .eq('template_id', id);
+
   revalidatePath('/configuracion/plantillas');
+  revalidatePath('/mes-actual');
+  revalidatePath('/');
+  revalidatePath('/fondo');
 }
 
 async function toggleExpenseTemplate(formData: FormData) {
