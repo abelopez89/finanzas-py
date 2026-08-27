@@ -158,3 +158,31 @@ pie de la página.
    período ya está marcado como generado — de 6 consultas a 1 liviana en cada
    visita a `/mes-actual`. La autenticación se memoiza por request en vez de
    consultarse 2-3 veces.
+
+---
+
+## Método/categoría de plantillas ahora se propagan a los gastos generados
+
+### PASO OBLIGATORIO antes de desplegar esta versión
+
+Ejecutar en el SQL Editor de Supabase:
+
+```
+supabase/sincronizar_metodo_categoria_gastos.sql
+```
+
+Sincroniza, de una sola vez, el método de pago y la categoría de todos los
+gastos ya generados con los de su plantilla actual. Es idempotente. Sin este
+script, los gastos generados antes de este cambio van a seguir mostrando el
+método/categoría viejo hasta que se edite la plantilla de nuevo.
+
+### Qué se corrigió
+
+A diferencia del monto (que tiene vigencias y queda "congelado" en la fecha
+de cada movimiento), método de pago y categoría son solo datos de
+clasificación. Antes, cambiar cualquiera de los dos en una plantilla
+(`Configuración → Plantillas`) no se reflejaba en los gastos ya generados
+desde ella — ni los históricos ni los del mes actual, que seguían mostrando
+el valor con el que se habían generado. Ahora, al editar una plantilla, el
+cambio se propaga automáticamente a todos los gastos generados desde ella,
+sin importar su estado.
