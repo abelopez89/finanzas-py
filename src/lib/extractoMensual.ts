@@ -14,6 +14,7 @@ const TIPO_LABEL: Record<string, string> = {
 export type FilaExtracto = {
   fecha: string;
   tipo: string;
+  origen: string;
   descripcion: string;
   monto: number;
   saldo: number;
@@ -65,6 +66,39 @@ export async function construirExtractoMensual(
 
   const saldoAnterior = calcularSaldoFondo(anteriores);
 
+  // Origen del movimiento (Gasto/Ingreso Normal vs Extra): fund_movements no
+  // guarda es_extra directamente, así que se resuelve consultando la entry
+  // referenciada (referencia_tipo/referencia_id). Intereses y saldo inicial
+  // no vienen de una entry, así que no tienen origen.
+  const idsGasto = delPeriodo
+    .filter((m) => m.referencia_tipo === 'expense_entries')
+    .map((m) => m.referencia_id);
+  const idsIngreso = delPeriodo
+    .filter((m) => m.referencia_tipo === 'income_entries')
+    .map((m) => m.referencia_id);
+
+  const [{ data: gastosRef }, { data: ingresosRef }] = await Promise.all([
+    idsGasto.length
+      ? supabase.from('expense_entries').select('id, es_extra').in('id', idsGasto)
+      : Promise.resolve({ data: [] as { id: string; es_extra: boolean }[] }),
+    idsIngreso.length
+      ? supabase.from('income_entries').select('id, es_extra').in('id', idsIngreso)
+      : Promise.resolve({ data: [] as { id: string; es_extra: boolean }[] }),
+  ]);
+
+  const esExtraGasto = new Map((gastosRef ?? []).map((e) => [e.id, e.es_extra]));
+  const esExtraIngreso = new Map((ingresosRef ?? []).map((e) => [e.id, e.es_extra]));
+
+  function origenDe(m: (typeof delPeriodo)[number]): string {
+    if (m.referencia_tipo === 'expense_entries') {
+      return esExtraGasto.get(m.referencia_id) ? 'Gasto Extra' : 'Gasto Normal';
+    }
+    if (m.referencia_tipo === 'income_entries') {
+      return esExtraIngreso.get(m.referencia_id) ? 'Ingreso Extra' : 'Ingreso Normal';
+    }
+    return '';
+  }
+
   let acumulado = saldoAnterior;
   const filas: FilaExtracto[] = delPeriodo.map((m) => {
     const montoConSigno = m.tipo === 'egreso' ? -Number(m.monto) : Number(m.monto);
@@ -72,6 +106,7 @@ export async function construirExtractoMensual(
     return {
       fecha: m.fecha,
       tipo: TIPO_LABEL[m.tipo] ?? m.tipo,
+      origen: origenDe(m),
       descripcion: m.descripcion ?? '',
       monto: montoConSigno,
       saldo: acumulado,
@@ -91,22 +126,30 @@ export async function construirExtractoMensual(
 /** Arma el .xlsx del extracto: saldo anterior, movimientos con saldo corrido, saldo final. */
 export function construirBufferExtracto(extracto: ExtractoMensual): Buffer {
   const filas = [
-    { Fecha: '', Tipo: '', Descripción: 'Saldo anterior', Monto: '', Saldo: extracto.saldoAnterior },
+    {
+      Fecha: '',
+      Tipo: '',
+      Origen: '',
+      Descripción: 'Saldo anterior',
+      Monto: '',
+      Saldo: extracto.saldoAnterior,
+    },
     ...extracto.filas.map((f) => ({
       Fecha: f.fecha,
       Tipo: f.tipo,
+      Origen: f.origen,
       Descripción: f.descripcion,
       Monto: f.monto,
       Saldo: f.saldo,
     })),
-    { Fecha: '', Tipo: '', Descripción: 'Saldo final', Monto: '', Saldo: extracto.saldoFinal },
+    { Fecha: '', Tipo: '', Origen: '', Descripción: 'Saldo final', Monto: '', Saldo: extracto.saldoFinal },
   ];
 
   const hoja = XLSX.utils.json_to_sheet(filas);
-  hoja['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 32 }, { wch: 15 }, { wch: 15 }];
-  // Monto (índice 3) y Saldo (índice 4): separador de miles.
-  formatearColumnaMiles(hoja, 3, filas.length);
+  hoja['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 32 }, { wch: 15 }, { wch: 15 }];
+  // Monto (índice 4) y Saldo (índice 5): separador de miles.
   formatearColumnaMiles(hoja, 4, filas.length);
+  formatearColumnaMiles(hoja, 5, filas.length);
 
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, 'Extracto mensual');
