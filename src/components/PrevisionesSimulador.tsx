@@ -15,10 +15,15 @@ export type FilaPrevision = {
   tieneExtra: boolean;
 };
 
+const TODOS_LOS_PERIODOS = 'todos';
+
 type Simulacion = {
   id: number;
   nombre: string;
   monto: number;
+  // El ISO de una fila puntual, o el literal TODOS_LOS_PERIODOS para una
+  // compra que se repite en cada período proyectado (ej: una cuota o
+  // suscripción nueva que todavía no está en ninguna plantilla).
   periodoISO: string;
   tipo: 'gasto' | 'ingreso';
 };
@@ -68,7 +73,9 @@ export default function PrevisionesSimulador({
   const proyeccion = useMemo(() => {
     let acumulado = saldoInicialProyeccion;
     return filas.map((f, idx) => {
-      const simsDelPeriodo = simulaciones.filter((s) => s.periodoISO === f.periodoISO);
+      const simsDelPeriodo = simulaciones.filter(
+        (s) => s.periodoISO === f.periodoISO || s.periodoISO === TODOS_LOS_PERIODOS
+      );
       const simGastos = simsDelPeriodo
         .filter((s) => s.tipo === 'gasto')
         .reduce((a, s) => a + s.monto, 0);
@@ -98,10 +105,14 @@ export default function PrevisionesSimulador({
 
   const chartData = proyeccion.map((f) => ({ periodo: f.label, saldo: f.saldo }));
   const primerNegativo = proyeccion.find((f) => f.saldo < 0);
-  const totalSimulado = simulaciones.reduce(
-    (a, s) => a + (s.tipo === 'gasto' ? s.monto : -s.monto),
-    0
-  );
+  // Una simulación "todos los períodos" impacta una vez por cada fila
+  // proyectada, así que el impacto neto total la cuenta esa cantidad de
+  // veces (no una sola, como a las de un período puntual).
+  const totalSimulado = simulaciones.reduce((a, s) => {
+    const repeticiones = s.periodoISO === TODOS_LOS_PERIODOS ? filas.length : 1;
+    const monto = s.monto * repeticiones;
+    return a + (s.tipo === 'gasto' ? monto : -monto);
+  }, 0);
 
   return (
     <div>
@@ -124,8 +135,9 @@ export default function PrevisionesSimulador({
       <Section titulo="Simular una compra">
         <div className="card p-4">
           <p className="mb-4 text-sm text-ink-500">
-            Probá cómo impactaría un gasto o ingreso futuro. Es solo un cálculo: no se guarda en
-            ningún lado y se borra al recargar.
+            Probá cómo impactaría un gasto o ingreso futuro. Elegí "Todos los períodos" para
+            simular una compra mensual nueva que se repite en cada período de la proyección. Es
+            solo un cálculo: no se guarda en ningún lado y se borra al recargar.
           </p>
 
           <div key={formKey} className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:items-end">
@@ -169,6 +181,7 @@ export default function PrevisionesSimulador({
                 onChange={(e) => setPeriodoISO(e.target.value)}
                 className="field"
               >
+                <option value={TODOS_LOS_PERIODOS}>Todos los períodos</option>
                 {filas.map((f, idx) => (
                   <option key={f.periodoISO} value={f.periodoISO}>
                     {idx === 0 ? 'Este período' : f.label}
@@ -199,6 +212,7 @@ export default function PrevisionesSimulador({
               </div>
               <ul className="space-y-2">
                 {simulaciones.map((s) => {
+                  const esTodos = s.periodoISO === TODOS_LOS_PERIODOS;
                   const fila = filas.find((f) => f.periodoISO === s.periodoISO);
                   return (
                     <li
@@ -213,7 +227,11 @@ export default function PrevisionesSimulador({
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-ink">{s.nombre}</p>
                         <p className="text-xs text-ink-400">
-                          {fila?.periodoISO === filas[0]?.periodoISO ? 'Actual' : fila?.label}
+                          {esTodos
+                            ? 'Todos los períodos · se repite cada mes'
+                            : fila?.periodoISO === filas[0]?.periodoISO
+                              ? 'Actual'
+                              : fila?.label}
                         </p>
                       </div>
                       <Money
