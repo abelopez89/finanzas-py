@@ -12,6 +12,10 @@ import {
 } from '@/lib/period';
 import BarChartIngresosEgresos from '@/components/BarChartIngresosEgresos';
 import CategoriaBarras from '@/components/CategoriaBarras';
+import RescatadoPorMetodo, {
+  type GastoRescatado,
+  type GrupoRescatadoPorMetodo,
+} from '@/components/RescatadoPorMetodo';
 import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import { Section, EmptyState, Aviso } from '@/components/ui/Layout';
@@ -125,22 +129,36 @@ export default async function DashboardPage() {
     .sort((a, b) => b.monto - a.monto);
 
   // Gastos ya rescatados del período (la plata salió del fondo, pero el
-  // gasto todavía no se marcó "pagado"): agrupados por método de pago, para
-  // ver de un vistazo cuánto hay repartido en cada uno a la espera de
-  // liquidarse.
-  const rescatadoPorMetodo = new Map<string, { nombre: string; total: number; cantidad: number }>();
+  // gasto todavía no se marcó "pagado"): agrupados por método de pago, con
+  // el detalle de cada gasto para el desplegable del dashboard.
+  const rescatadoPorMetodo = new Map<
+    string,
+    Omit<GrupoRescatadoPorMetodo, 'id'>
+  >();
   for (const g of pendientesOrdenados) {
     if (g.estado !== 'rescatado') continue;
     const key = g.payment_method_id ?? 'sin-metodo';
     const nombre = (g as any).payment_methods?.nombre ?? 'Sin método';
-    const actual = rescatadoPorMetodo.get(key) ?? { nombre, total: 0, cantidad: 0 };
+    const actual = rescatadoPorMetodo.get(key) ?? {
+      nombre,
+      total: 0,
+      gastos: [] as GastoRescatado[],
+    };
     actual.total += Number(g.monto);
-    actual.cantidad += 1;
+    actual.gastos.push({
+      id: g.id,
+      nombre: g.nombre,
+      monto: Number(g.monto),
+      dia: g.dia,
+      es_extra: g.es_extra,
+    });
     rescatadoPorMetodo.set(key, actual);
   }
-  const rescatadoPorMetodoOrdenado = Array.from(rescatadoPorMetodo.values()).sort(
-    (a, b) => b.total - a.total
-  );
+  const rescatadoPorMetodoOrdenado: GrupoRescatadoPorMetodo[] = Array.from(
+    rescatadoPorMetodo.entries()
+  )
+    .map(([id, m]) => ({ id, ...m }))
+    .sort((a, b) => b.total - a.total);
   const totalRescatado = rescatadoPorMetodoOrdenado.reduce((a, m) => a + m.total, 0);
 
   return (
@@ -231,24 +249,7 @@ export default async function DashboardPage() {
       {/* ---------- Rescatado del mes, agrupado por método de pago ---------- */}
       {rescatadoPorMetodoOrdenado.length > 0 && (
         <Section titulo="Rescatado del mes, por método de pago">
-          <ul className="card divide-y divide-line overflow-hidden">
-            {rescatadoPorMetodoOrdenado.map((m) => (
-              <li key={m.nombre} className="flex items-center gap-3 px-4 py-3">
-                <span className="h-8 w-1 shrink-0 rounded-full bg-ochre-600" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ink">{m.nombre}</p>
-                  <p className="text-xs text-ink-400">
-                    {m.cantidad} {m.cantidad === 1 ? 'gasto' : 'gastos'}
-                  </p>
-                </div>
-                <Money value={m.total} className="shrink-0 font-medium text-ochre-700" />
-              </li>
-            ))}
-            <li className="flex items-center justify-between gap-3 bg-canvas/60 px-4 py-3">
-              <span className="text-sm font-semibold text-ink">Total rescatado</span>
-              <Money value={totalRescatado} className="font-semibold text-ink" />
-            </li>
-          </ul>
+          <RescatadoPorMetodo grupos={rescatadoPorMetodoOrdenado} total={totalRescatado} />
         </Section>
       )}
 
