@@ -19,9 +19,13 @@ type GastoAviso = {
 
 /**
  * Arma el aviso diario de una cuenta: gastos que vencen hoy, los que ya
- * quedaron atrás sin pagar, y el saldo del fondo. Se manda siempre que haya
- * al menos un destinatario — incluso sin vencimientos, sirve como check-in
- * diario del saldo.
+ * quedaron atrás sin pagar, y el saldo del fondo.
+ *
+ * Si no hay nada pendiente de rescatar (ni vence hoy ni quedó atrasado),
+ * devuelve `null` y no arma mensaje: un aviso diario que siempre llega se
+ * vuelve ruido que se termina ignorando. `forzar` salta ese corte, para el
+ * botón de prueba en Configuración → Telegram (ahí interesa confirmar que
+ * el token/chat_id funcionan aunque no haya nada que rescatar).
  */
 export async function construirAvisoDiario(
   // Acepta cualquiera de los dos clientes (sesión de usuario o service
@@ -30,7 +34,7 @@ export async function construirAvisoDiario(
   supabase: any,
   accountId: string,
   opciones: { forzar?: boolean } = {}
-): Promise<string> {
+): Promise<string | null> {
   const hoyISO = toISODate(new Date());
 
   const [{ data: gastos }, { data: movimientos }] = await Promise.all([
@@ -64,6 +68,13 @@ export async function construirAvisoDiario(
     .filter((g) => g.fechaISO < hoyISO && g.estado === 'pendiente')
     .sort((a, b) => a.fechaISO.localeCompare(b.fechaISO));
 
+  // Lo único que realmente requiere acción es lo pendiente: un vencimiento
+  // de hoy ya rescatado no necesita que nadie haga nada.
+  const porRescatarHoy = vencenHoy.filter((g) => g.estado === 'pendiente');
+  if (!opciones.forzar && porRescatarHoy.length === 0 && atrasados.length === 0) {
+    return null;
+  }
+
   const linea = (g: GastoAviso, mostrarFecha = false) => {
     const partes = [`• <b>${escapeHtml(g.nombre)}</b> — ${fmtGs(g.monto)}`];
     if (g.metodo) partes.push(escapeHtml(g.metodo));
@@ -76,13 +87,12 @@ export async function construirAvisoDiario(
   bloques.push('<b>finanzas·py — vencimientos</b>');
 
   if (vencenHoy.length > 0) {
-    const porRescatar = vencenHoy.filter((g) => g.estado === 'pendiente');
     bloques.push(
       `\n📅 <b>Vencen hoy (${vencenHoy.length})</b>\n` +
         vencenHoy.map((g) => linea(g)).join('\n')
     );
-    if (porRescatar.length > 0) {
-      const total = porRescatar.reduce((a, g) => a + g.monto, 0);
+    if (porRescatarHoy.length > 0) {
+      const total = porRescatarHoy.reduce((a, g) => a + g.monto, 0);
       bloques.push(`\n💧 A rescatar antes del mediodía: <b>${fmtGs(total)}</b>`);
     }
   }
