@@ -91,8 +91,14 @@ export async function GET(request: NextRequest) {
     for (const [accountId, chatIds] of porCuenta) {
       try {
         const mensaje = await construirAvisoDiario(supabase, accountId);
-        const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
-        resumen.push({ accountId, avisoDiario: { enviados, fallidos } });
+        if (mensaje === null) {
+          // Nada pendiente de rescatar hoy: no se manda nada, para que el
+          // aviso diario no se vuelva ruido que se termina ignorando.
+          resumen.push({ accountId, avisoDiario: { omitido: true, motivo: 'nada para rescatar' } });
+        } else {
+          const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, mensaje);
+          resumen.push({ accountId, avisoDiario: { enviados, fallidos } });
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error desconocido';
         console.error(`Error con aviso diario, cuenta ${accountId}:`, err);
