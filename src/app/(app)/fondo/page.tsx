@@ -172,6 +172,9 @@ export default async function FondoPage({
   const totalIngresos = movimientos
     .filter((m) => m.tipo === 'Ingreso')
     .reduce((a, m) => a + m.monto, 0);
+  const totalIntereses = movimientos
+    .filter((m) => m.tipo === 'Interés')
+    .reduce((a, m) => a + m.monto, 0);
 
   const paginaActual = Math.max(1, Number(searchParams.pagina) || 1);
   const totalPaginas = Math.max(1, Math.ceil(movimientos.length / POR_PAGINA));
@@ -258,6 +261,15 @@ export default async function FondoPage({
           <span className="text-sm text-ink-400">
             Ingresos{' '}
             <Money value={totalIngresos} size="sm" className="font-semibold text-pine-700" />
+          </span>
+          <span className="text-sm text-ink-400">
+            Intereses{' '}
+            <Money
+              value={Math.abs(totalIntereses)}
+              signo={totalIntereses < 0 ? 'egreso' : 'ingreso'}
+              size="sm"
+              className={`font-semibold ${totalIntereses < 0 ? 'text-brick-600' : 'text-pine-700'}`}
+            />
           </span>
           <span className="text-sm text-ink-400">
             Neto{' '}
