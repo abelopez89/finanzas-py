@@ -97,6 +97,12 @@ export default function ExtrasList({
   deleteEntry: AccionServidor;
 }) {
   const [busqueda, setBusqueda] = useState('');
+  // Solo se usa en la vista móvil: en escritorio la edición vive siempre
+  // visible en su propia celda de la tabla (igual que Mes actual), pero en
+  // la tarjeta móvil mostrar fecha+monto+método+botón de una todo el tiempo
+  // quedaba muy cargado. Se oculta detrás de un "Editar" y por defecto se
+  // ve compacto.
+  const [editandoMovil, setEditandoMovil] = useState<string | null>(null);
   const esGasto = tipo === 'gasto';
   const campoFecha = esGasto ? 'fecha_vencimiento' : 'fecha_aplicacion';
   const { visibles, enCurso, ejecutar } = useFilasOptimistas(items);
@@ -135,6 +141,7 @@ export default function ExtrasList({
       metodoId: metodoIdNuevo,
       metodoNombre: metodoNombreNuevo,
     });
+    setEditandoMovil(null);
   };
 
   const CamposEdicion = ({ it, compacto }: { it: Extra; compacto?: boolean }) => (
@@ -238,6 +245,15 @@ export default function ExtrasList({
             Revertir
           </button>
         )}
+        {compacto && it.estado === 'pendiente' && (
+          <button
+            type="button"
+            onClick={() => setEditandoMovil(editandoMovil === it.id ? null : it.id)}
+            className="btn-row text-ink-500 hover:bg-canvas"
+          >
+            {editandoMovil === it.id ? 'Cerrar' : 'Editar'}
+          </button>
+        )}
         {it.estado === 'pendiente' && (
           <button
             type="button"
@@ -319,7 +335,7 @@ export default function ExtrasList({
                 </div>
               </div>
 
-              {it.estado === 'pendiente' && (
+              {it.estado === 'pendiente' && editandoMovil === it.id && (
                 <div className="mt-3">
                   <CamposEdicion it={it} compacto />
                 </div>
