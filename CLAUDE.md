@@ -182,8 +182,17 @@ plantillas activas en cada visita, pero es idempotente y barato: primero
 chequea `period_generations` y si el período ya está marcado, no hace nada
 más. Si el usuario borra a mano un movimiento generado desde plantilla, se
 anota en `entry_omisiones` para que no reaparezca en el próximo render.
-Borrar/editar una plantilla nunca toca movimientos ya generados, y viceversa
-— son filas independientes por diseño, reforzado a nivel de base de datos.
+
+Editar una plantilla no toca los movimientos ya generados, **salvo una
+excepción deliberada**: `monto`/`activo` tienen vigencias y quedan
+congelados en la entry a la fecha en que se generó (ver
+`src/lib/vigencias.ts`), pero `payment_method_id`/`category_id` son solo
+clasificación, así que `updateExpenseTemplate` los propaga de inmediato a
+**todos** los `expense_entries` con ese `template_id`, sin importar su
+estado ni el período. Si agregás un campo nuevo a una plantilla, definir a
+propósito si se comporta como el monto (vigencia, congelado) o como el
+método/categoría (propagación inmediata) — no asumir ninguno de los dos por
+default.
 
 ### Server vs. Client Components
 
@@ -194,6 +203,20 @@ optimistas (ver `useFilasOptimistas.ts`, `GastosEntriesTable.tsx`,
 `GastosTemplateTable.tsx`). Los filtros de texto se resuelven en cliente sin
 recargar; los filtros de estado/rango de fecha se resuelven vía
 `searchParams` (recargan la página).
+
+### Edición inline: compacta en móvil, siempre visible en escritorio
+
+Patrón compartido por `GastosEntriesTable`, `IngresosEntriesTable` y
+`ExtrasList`: en escritorio, la fila pendiente/editable muestra su
+formulario (día o fecha + monto, y método en Extras) siempre visible en su
+propia celda de la tabla. En la tarjeta móvil ese mismo formulario queda
+oculto por defecto (mostrar 3-4 campos apilados por tarjeta se ve muy
+cargado): un estado local `editandoMovil` por componente, y un botón
+"Editar"/"Cerrar" en las acciones (solo cuando `compacto`), alternan entre
+la vista compacta (nombre, fecha/día, método, monto, estado) y el
+formulario. Al guardar se vuelve a la vista compacta. Nuevas grillas
+editables en móvil deberían seguir este mismo patrón en vez de mostrar el
+formulario siempre.
 
 ### Autenticación
 
@@ -212,6 +235,17 @@ memoizar por request — usarlos siempre en vez de llamar
 markup nuevo para casos ya cubiertos. La paleta de color tiene significado
 semántico fijo en `tailwind.config.js`: `pine` (verde) = fondo/ingresos/
 confirmado, `brick` (rojo) = egresos, `ochre` = estado intermedio/avisos.
+
+### Aviso diario por Telegram: silencio si no hay nada que rescatar
+
+`construirAvisoDiario` (`src/lib/avisos.ts`) devuelve `null` cuando no hay
+ningún gasto **pendiente** que venza hoy ni atrasado — un vencimiento de hoy
+ya rescatado no cuenta, porque no requiere acción. El cron
+(`/api/cron/notificar-vencimientos`) no manda nada por Telegram en ese caso,
+para que el aviso diario no se vuelva ruido que se termina ignorando. El
+botón "Enviar aviso de prueba" (Configuración → Telegram) pasa
+`{ forzar: true }` para saltarse ese corte y poder confirmar la
+configuración del bot aunque no haya nada pendiente.
 
 ### Comentarios
 
