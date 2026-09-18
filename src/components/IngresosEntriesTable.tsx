@@ -45,6 +45,11 @@ export default function IngresosEntriesTable({
   deleteIncomeEntry: AccionServidor;
 }) {
   const [busqueda, setBusqueda] = useState('');
+  // Solo se usa en la vista móvil: en escritorio la edición vive siempre
+  // visible en su propia celda de la tabla, pero en la tarjeta mostrar
+  // día+monto+Guardar todo el tiempo quedaba cargado. Se oculta detrás de
+  // un "Editar" y por defecto se ve compacto.
+  const [editandoMovil, setEditandoMovil] = useState<string | null>(null);
   const { visibles, enCurso, ejecutar } = useFilasOptimistas(ingresos);
 
   const filtrados = useMemo(() => {
@@ -76,6 +81,7 @@ export default function IngresosEntriesTable({
       dia: Number(fd.get('dia')) || i.dia,
       monto: Number(fd.get('monto')) || 0,
     });
+    setEditandoMovil(null);
   };
 
   const Acciones = ({ i, compacto }: { i: Ingreso; compacto?: boolean }) => {
@@ -92,6 +98,15 @@ export default function IngresosEntriesTable({
             >
               Confirmar
             </button>
+            {compacto && (
+              <button
+                type="button"
+                onClick={() => setEditandoMovil(editandoMovil === i.id ? null : i.id)}
+                className="btn-row text-ink-500 hover:bg-canvas"
+              >
+                {editandoMovil === i.id ? 'Cerrar' : 'Editar'}
+              </button>
+            )}
             <button
               type="button"
               disabled={ocupado}
@@ -153,7 +168,7 @@ export default function IngresosEntriesTable({
                 </div>
               </div>
 
-              {i.estado !== 'confirmado' && (
+              {i.estado !== 'confirmado' && editandoMovil === i.id && (
                 <form onSubmit={(e) => guardar(i, e)} className="mt-3 flex items-center gap-2">
                   <input
                     name="dia"

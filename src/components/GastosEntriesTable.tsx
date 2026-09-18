@@ -87,6 +87,11 @@ export default function GastosEntriesTable({
   deleteExpenseEntry: AccionServidor;
 }) {
   const [busqueda, setBusqueda] = useState('');
+  // Solo se usa en la vista móvil: en escritorio la edición vive siempre
+  // visible en su propia celda de la tabla, pero en la tarjeta mostrar
+  // día+monto+Guardar todo el tiempo quedaba cargado. Se oculta detrás de
+  // un "Editar" y por defecto se ve compacto.
+  const [editandoMovil, setEditandoMovil] = useState<string | null>(null);
   const { visibles, enCurso, ejecutar } = useFilasOptimistas(gastos);
 
   const filtrados = useMemo(() => {
@@ -119,6 +124,7 @@ export default function GastosEntriesTable({
       dia: Number(fd.get('dia')) || g.dia,
       monto: Number(fd.get('monto')) || 0,
     });
+    setEditandoMovil(null);
   };
 
   const Acciones = ({ g, compacto }: { g: Gasto; compacto?: boolean }) => {
@@ -153,6 +159,15 @@ export default function GastosEntriesTable({
             className="btn-row text-ink-500 hover:bg-canvas disabled:opacity-50"
           >
             Revertir
+          </button>
+        )}
+        {compacto && g.estado === 'pendiente' && (
+          <button
+            type="button"
+            onClick={() => setEditandoMovil(editandoMovil === g.id ? null : g.id)}
+            className="btn-row text-ink-500 hover:bg-canvas"
+          >
+            {editandoMovil === g.id ? 'Cerrar' : 'Editar'}
           </button>
         )}
         {g.estado === 'pendiente' && (
@@ -227,7 +242,7 @@ export default function GastosEntriesTable({
                 </div>
               </div>
 
-              {g.estado === 'pendiente' && (
+              {g.estado === 'pendiente' && editandoMovil === g.id && (
                 <form
                   onSubmit={(e) => guardar(g, e)}
                   className="mt-3 flex items-center gap-2"
