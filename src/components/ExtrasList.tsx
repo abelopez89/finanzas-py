@@ -145,21 +145,24 @@ export default function ExtrasList({
   };
 
   const CamposEdicion = ({ it, compacto }: { it: Extra; compacto?: boolean }) => (
-    <form onSubmit={(e) => guardar(it, e)} className="flex flex-wrap items-center gap-2">
+    <form
+      onSubmit={(e) => guardar(it, e)}
+      className={`flex items-center gap-2 ${compacto ? 'flex-wrap' : 'flex-nowrap'}`}
+    >
       <input
         name={campoFecha}
         type="date"
         defaultValue={it.fecha ?? ''}
         key={`fecha-${it.fecha}`}
         aria-label="Fecha"
-        className={`field-sm ${compacto ? 'w-full' : 'w-36'}`}
+        className={`field-sm ${compacto ? 'w-full' : 'w-36 shrink-0'}`}
         required
       />
       <MontoInput
         name="monto"
         defaultValue={it.monto}
         key={`monto-${it.monto}`}
-        className={`field-sm ${compacto ? 'w-full' : 'w-32'}`}
+        className={`field-sm ${compacto ? 'w-full' : 'w-32 shrink-0'}`}
       />
       {esGasto && (
         <select
@@ -167,7 +170,7 @@ export default function ExtrasList({
           defaultValue={it.metodoId ?? ''}
           key={`metodo-${it.metodoId}`}
           aria-label="Método de pago"
-          className={`field-sm ${compacto ? 'w-full' : ''}`}
+          className={`field-sm ${compacto ? 'w-full' : 'w-36 shrink-0'}`}
         >
           <option value="">Sin método</option>
           {metodos.map((m) => (
