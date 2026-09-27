@@ -1,8 +1,14 @@
 import * as XLSX from 'xlsx';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { calcularSaldoFondo } from '@/lib/fund';
+import { calcularSaldoFondo, type FundMovement } from '@/lib/fund';
 import { getFinPeriodo, toISODate, formatPeriodoLabel } from '@/lib/period';
 import { formatearColumnaMiles } from '@/lib/xlsxFormato';
+
+type FundMovementRow = FundMovement & {
+  fecha: string;
+  descripcion: string | null;
+  referencia_tipo: string | null;
+  referencia_id: string | null;
+};
 
 const TIPO_LABEL: Record<string, string> = {
   ingreso: 'Ingreso',
@@ -37,10 +43,16 @@ export type ExtractoMensual = {
  * histórico a esa fecha.
  */
 export async function construirExtractoMensual(
+  // Acepta cualquiera de los dos clientes (sesión de usuario o service
+  // role): ver la misma nota en construirAvisoDiario (avisos.ts). El cron
+  // de notificar-vencimientos no tiene sesión de usuario, así que si esta
+  // función creara su propio cliente atado a cookies (como hacía antes),
+  // RLS le devolvería todo vacío — el extracto llegaba sin movimientos y
+  // con saldos en cero.
+  supabase: any,
   accountId: string,
   periodoISO: string
 ): Promise<ExtractoMensual> {
-  const supabase = createSupabaseServerClient();
   const inicio = new Date(`${periodoISO}T00:00:00Z`);
   const finISO = toISODate(getFinPeriodo(inicio));
 
@@ -50,7 +62,7 @@ export async function construirExtractoMensual(
     .eq('account_id', accountId)
     .order('fecha', { ascending: true });
 
-  const todos = movimientos ?? [];
+  const todos: FundMovementRow[] = movimientos ?? [];
   const anteriores = todos.filter((m) => m.fecha < periodoISO);
   const delPeriodo = todos
     .filter((m) => m.fecha >= periodoISO && m.fecha <= finISO)
@@ -77,23 +89,26 @@ export async function construirExtractoMensual(
     .filter((m) => m.referencia_tipo === 'income_entries')
     .map((m) => m.referencia_id);
 
-  const [{ data: gastosRef }, { data: ingresosRef }] = await Promise.all([
-    idsGasto.length
-      ? supabase.from('expense_entries').select('id, es_extra').in('id', idsGasto)
-      : Promise.resolve({ data: [] as { id: string; es_extra: boolean }[] }),
-    idsIngreso.length
-      ? supabase.from('income_entries').select('id, es_extra').in('id', idsIngreso)
-      : Promise.resolve({ data: [] as { id: string; es_extra: boolean }[] }),
-  ]);
+  type RefEntry = { id: string; es_extra: boolean };
+
+  const [{ data: gastosRef }, { data: ingresosRef }]: [{ data: RefEntry[] }, { data: RefEntry[] }] =
+    await Promise.all([
+      idsGasto.length
+        ? supabase.from('expense_entries').select('id, es_extra').in('id', idsGasto)
+        : Promise.resolve({ data: [] as RefEntry[] }),
+      idsIngreso.length
+        ? supabase.from('income_entries').select('id, es_extra').in('id', idsIngreso)
+        : Promise.resolve({ data: [] as RefEntry[] }),
+    ]);
 
   const esExtraGasto = new Map((gastosRef ?? []).map((e) => [e.id, e.es_extra]));
   const esExtraIngreso = new Map((ingresosRef ?? []).map((e) => [e.id, e.es_extra]));
 
   function origenDe(m: (typeof delPeriodo)[number]): string {
-    if (m.referencia_tipo === 'expense_entries') {
+    if (m.referencia_tipo === 'expense_entries' && m.referencia_id) {
       return esExtraGasto.get(m.referencia_id) ? 'Gasto Extra' : 'Gasto Normal';
     }
-    if (m.referencia_tipo === 'income_entries') {
+    if (m.referencia_tipo === 'income_entries' && m.referencia_id) {
       return esExtraIngreso.get(m.referencia_id) ? 'Ingreso Extra' : 'Ingreso Normal';
     }
     return '';

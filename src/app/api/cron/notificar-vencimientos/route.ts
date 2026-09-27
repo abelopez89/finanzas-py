@@ -107,7 +107,11 @@ export async function GET(request: NextRequest) {
 
       if (periodoRecienCerradoISO) {
         try {
-          const extracto = await construirExtractoMensual(accountId, periodoRecienCerradoISO);
+          const extracto = await construirExtractoMensual(
+            supabase,
+            accountId,
+            periodoRecienCerradoISO
+          );
           const buffer = construirBufferExtracto(extracto);
           const caption =
             `<b>Extracto — ${extracto.periodoLabel}</b>\n` +

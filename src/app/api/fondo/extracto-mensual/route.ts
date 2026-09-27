@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { construirExtractoMensual, construirBufferExtracto } from '@/lib/extractoMensual';
 
 export async function GET(request: NextRequest) {
@@ -13,7 +14,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Falta el parámetro periodo' }, { status: 400 });
   }
 
-  const extracto = await construirExtractoMensual(accountId, periodoISO);
+  const supabase = createSupabaseServerClient();
+  const extracto = await construirExtractoMensual(supabase, accountId, periodoISO);
   const buffer = construirBufferExtracto(extracto);
 
   return new NextResponse(new Uint8Array(buffer), {
