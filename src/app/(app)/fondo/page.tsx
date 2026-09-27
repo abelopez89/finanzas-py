@@ -99,7 +99,7 @@ async function enviarExtractoPorTelegram(
       return { ok: false, mensaje: 'No hay destinatarios de Telegram activos.' };
     }
 
-    const extracto = await construirExtractoMensual(accountId, periodoISO);
+    const extracto = await construirExtractoMensual(supabase, accountId, periodoISO);
     const buffer = construirBufferExtracto(extracto);
     const caption =
       `<b>Extracto — ${extracto.periodoLabel}</b>\n` +
