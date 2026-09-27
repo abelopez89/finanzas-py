@@ -39,17 +39,21 @@ export default async function PrevisionesPage() {
     { data: vigenciasIngreso },
   ] = await Promise.all([
     supabase.from('fund_movements').select('tipo, monto').eq('account_id', accountId),
+    // No solo el período vigente: un gasto/ingreso que quedó pendiente de
+    // un período anterior (nunca se rescató/pagó/confirmó, así que nunca
+    // impactó fund_movements) igual va a salir/entrar del fondo en algún
+    // momento y tiene que restar/sumar en la proyección.
     supabase
       .from('expense_entries')
       .select('monto')
       .eq('account_id', accountId)
-      .eq('periodo', periodoActualISO)
+      .lte('periodo', periodoActualISO)
       .eq('estado', 'pendiente'),
     supabase
       .from('income_entries')
       .select('monto')
       .eq('account_id', accountId)
-      .eq('periodo', periodoActualISO)
+      .lte('periodo', periodoActualISO)
       .eq('estado', 'pendiente'),
     // Se traen todas las plantillas y sus vigencias: el monto y si aplica
     // se resuelven período por período, no una sola vez.
