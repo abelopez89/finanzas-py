@@ -16,10 +16,11 @@ import RescatadoPorMetodo, {
   type GastoRescatado,
   type GrupoRescatadoPorMetodo,
 } from '@/components/RescatadoPorMetodo';
+import PanelRescateHoy, { type GastoPendienteHoy } from '@/components/PanelRescateHoy';
 import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import { Section, EmptyState, Aviso } from '@/components/ui/Layout';
-import Link from 'next/link';
+import { cambiarEstadoGasto } from '@/lib/actions/entries';
 
 function periodoKeyFor(fechaStr: string): string {
   return toISODate(getInicioPeriodoActual(new Date(`${fechaStr}T00:00:00Z`)));
@@ -97,7 +98,18 @@ export default async function DashboardPage() {
     .filter((g) => g.fechaISO === hoyISO)
     .sort((a, b) => (a.payment_methods?.nombre ?? '').localeCompare(b.payment_methods?.nombre ?? '', 'es'));
   const atrasados = pendientesConFecha.filter((g) => g.fechaISO < hoyISO);
-  const totalARescatarHoy = [...vencenHoy, ...atrasados].reduce((a, g) => a + Number(g.monto), 0);
+
+  const vencenHoyItems: GastoPendienteHoy[] = vencenHoy.map((g) => ({
+    id: g.id,
+    nombre: g.nombre,
+    monto: Number(g.monto),
+    esExtra: g.es_extra,
+    metodoNombre: g.payment_methods?.nombre ?? null,
+  }));
+  const atrasadosResumen = {
+    cantidad: atrasados.length,
+    total: atrasados.reduce((a, g) => a + Number(g.monto), 0),
+  };
 
   // "Próximos" excluye lo que ya está en el resumen de rescate de hoy.
   const proximosOrdenados = pendientesOrdenados.filter(
@@ -176,57 +188,11 @@ export default async function DashboardPage() {
       </section>
 
       {/* ---------- Rescate de hoy: lo primero que hay que resolver ---------- */}
-      {(vencenHoy.length > 0 || atrasados.length > 0) && (
-        <section className="mb-8 overflow-hidden rounded-card border border-ochre-100 bg-ochre-50/40">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ochre-100 px-5 py-4">
-            <div>
-              <p className="text-[11px] uppercase tracking-wide text-ochre-700">
-                Para rescatar antes del mediodía
-              </p>
-              <Money value={totalARescatarHoy} size="lg" className="mt-1 block font-semibold text-ochre-700" />
-            </div>
-            <div className="text-right text-xs text-ink-500">
-              {vencenHoy.length > 0 && (
-                <p>
-                  {vencenHoy.length} vence{vencenHoy.length === 1 ? '' : 'n'} hoy
-                </p>
-              )}
-              {atrasados.length > 0 && (
-                <p className="font-medium text-brick-600">
-                  {atrasados.length} atrasado{atrasados.length === 1 ? '' : 's'}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {vencenHoy.length > 0 && (
-            <ul className="divide-y divide-ochre-100">
-              {vencenHoy.map((g) => (
-                <li key={g.id} className="flex items-center gap-3 px-5 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">
-                      {g.nombre}
-                      {g.es_extra && <span className="ml-1.5 text-xs text-ink-400">extra</span>}
-                    </p>
-                    {g.payment_methods?.nombre && (
-                      <p className="text-xs text-ink-400">{g.payment_methods.nombre}</p>
-                    )}
-                  </div>
-                  <Money value={g.monto} className="shrink-0 font-medium text-ink" />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {atrasados.length > 0 && (
-            <div className="border-t border-ochre-100 px-5 py-3">
-              <Link href="/mes-actual" className="text-sm font-medium text-brick-600 hover:underline">
-                Ver {atrasados.length} atrasado{atrasados.length === 1 ? '' : 's'} de meses anteriores →
-              </Link>
-            </div>
-          )}
-        </section>
-      )}
+      <PanelRescateHoy
+        vencenHoy={vencenHoyItems}
+        atrasados={atrasadosResumen}
+        cambiarEstadoGasto={cambiarEstadoGasto}
+      />
 
       {/* ---------- Dos cifras de contexto ---------- */}
       <div className="mb-8 grid grid-cols-2 gap-3">
