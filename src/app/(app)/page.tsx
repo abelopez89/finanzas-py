@@ -105,11 +105,16 @@ export default async function DashboardPage() {
     monto: Number(g.monto),
     esExtra: g.es_extra,
     metodoNombre: g.payment_methods?.nombre ?? null,
+    atrasado: false,
   }));
-  const atrasadosResumen = {
-    cantidad: atrasados.length,
-    total: atrasados.reduce((a, g) => a + Number(g.monto), 0),
-  };
+  const atrasadosItems: GastoPendienteHoy[] = atrasados.map((g) => ({
+    id: g.id,
+    nombre: g.nombre,
+    monto: Number(g.monto),
+    esExtra: g.es_extra,
+    metodoNombre: g.payment_methods?.nombre ?? null,
+    atrasado: true,
+  }));
 
   // "Próximos" excluye lo que ya está en el resumen de rescate de hoy.
   const proximosOrdenados = pendientesOrdenados.filter(
@@ -171,7 +176,6 @@ export default async function DashboardPage() {
   )
     .map(([id, m]) => ({ id, ...m }))
     .sort((a, b) => b.total - a.total);
-  const totalRescatado = rescatadoPorMetodoOrdenado.reduce((a, m) => a + m.total, 0);
 
   return (
     <div>
@@ -190,7 +194,7 @@ export default async function DashboardPage() {
       {/* ---------- Rescate de hoy: lo primero que hay que resolver ---------- */}
       <PanelRescateHoy
         vencenHoy={vencenHoyItems}
-        atrasados={atrasadosResumen}
+        atrasados={atrasadosItems}
         cambiarEstadoGasto={cambiarEstadoGasto}
       />
 
@@ -215,7 +219,10 @@ export default async function DashboardPage() {
       {/* ---------- Rescatado del mes, agrupado por método de pago ---------- */}
       {rescatadoPorMetodoOrdenado.length > 0 && (
         <Section titulo="Rescatado del mes, por método de pago">
-          <RescatadoPorMetodo grupos={rescatadoPorMetodoOrdenado} total={totalRescatado} />
+          <RescatadoPorMetodo
+            grupos={rescatadoPorMetodoOrdenado}
+            cambiarEstadoGasto={cambiarEstadoGasto}
+          />
         </Section>
       )}
 
