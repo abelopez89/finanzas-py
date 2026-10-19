@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Money from '@/components/ui/Money';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
@@ -52,7 +52,14 @@ export default function PanelRescateHoy({
   cambiarEstadoGasto: AccionServidor;
 }) {
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
-  const { visibles, enCurso, ejecutar } = useFilasOptimistas([...vencenHoy, ...atrasados]);
+  // useFilasOptimistas suelta sus parches cada vez que esta lista cambia de
+  // referencia (ver avisos en el hook). [...vencenHoy, ...atrasados] arma un
+  // array nuevo en cada render — sin memoizar, cualquier re-render local
+  // (incluso el que dispara el propio clic en Rescatar) lo invalidaba y
+  // borraba el parche recién aplicado antes de que llegaran los datos
+  // frescos del servidor.
+  const combinados = useMemo(() => [...vencenHoy, ...atrasados], [vencenHoy, atrasados]);
+  const { visibles, enCurso, ejecutar } = useFilasOptimistas(combinados);
 
   const cantidadHoy = visibles.filter((g) => !g.atrasado).length;
   const cantidadAtrasados = visibles.filter((g) => g.atrasado).length;

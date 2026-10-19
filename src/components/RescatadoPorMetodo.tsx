@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Money from '@/components/ui/Money';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
@@ -59,8 +59,15 @@ export default function RescatadoPorMetodo({
 }) {
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
 
-  const planos: GastoConGrupo[] = grupos.flatMap((g) =>
-    g.gastos.map((gasto) => ({ ...gasto, grupoId: g.id, grupoNombre: g.nombre }))
+  // useFilasOptimistas suelta sus parches cada vez que esta lista cambia de
+  // referencia (ver avisos en el hook). flatMap arma un array nuevo en cada
+  // render — sin memoizar, cualquier re-render local (incluso el que
+  // dispara el propio clic en Pagar) lo invalidaba y borraba el parche
+  // recién aplicado antes de que llegaran los datos frescos del servidor,
+  // así que el gasto nunca desaparecía.
+  const planos = useMemo<GastoConGrupo[]>(
+    () => grupos.flatMap((g) => g.gastos.map((gasto) => ({ ...gasto, grupoId: g.id, grupoNombre: g.nombre }))),
+    [grupos]
   );
   const { visibles, enCurso, ejecutar } = useFilasOptimistas(planos);
 
