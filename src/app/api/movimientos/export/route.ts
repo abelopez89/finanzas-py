@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     tipo: (searchParams.get('tipo') as FiltrosMovimientos['tipo']) ?? undefined,
     origen: (searchParams.get('origen') as FiltrosMovimientos['origen']) ?? undefined,
     estado: searchParams.get('estado') ?? undefined,
+    categoria: searchParams.get('categoria') ?? undefined,
     desde: searchParams.get('desde') ?? undefined,
     hasta: searchParams.get('hasta') ?? undefined,
   };
@@ -28,14 +29,23 @@ export async function GET(request: NextRequest) {
     Tipo: m.tipo,
     Origen: m.origen,
     Nombre: m.nombre,
+    Categoría: m.categoriaNombre ?? '',
     Estado: m.estado,
     Monto: m.tipo === 'Gasto' ? -m.monto : m.monto,
   }));
 
   const hoja = XLSX.utils.json_to_sheet(filas);
-  hoja['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 15 }];
-  // Columna Monto (índice 5, la última): separador de miles.
-  formatearColumnaMiles(hoja, 5, filas.length);
+  hoja['!cols'] = [
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 30 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 15 },
+  ];
+  // Columna Monto (índice 6, la última): separador de miles.
+  formatearColumnaMiles(hoja, 6, filas.length);
 
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, 'Movimientos');
