@@ -175,6 +175,21 @@ movimiento. Mismo patrón simétrico para ingresos con `confirmado`. Cualquier
 cambio de estado que toque el fondo debe revalidar también `/` y `/fondo`
 además de la página de origen (ver `revalidarMesActual` en `entries.ts`).
 
+### Funciones compartidas entre página y cron: el cliente de Supabase se recibe por parámetro
+
+Dos veces en este repo una función de `src/lib/` se armó llamando adentro a
+`createSupabaseServerClient()` (atado a las cookies del request) y después
+se la usó también desde `/api/cron/notificar-vencimientos`, que no tiene
+sesión de usuario: el cliente quedaba sin autenticar, RLS le devolvía todo
+vacío, y el resultado salía vacío/en cero sin ningún error visible — pasó
+primero con el aviso diario y después, sin aprender la lección, con el
+extracto mensual. `construirAvisoDiario` (`avisos.ts`) y
+`construirExtractoMensual` (`extractoMensual.ts`) ya lo resuelven
+recibiendo `supabase: any` como primer parámetro — el llamador decide si
+pasa el cliente de sesión o el de service role. Cualquier función nueva
+que se vaya a invocar tanto desde una página/Server Action como desde el
+cron tiene que seguir ese mismo patrón: nunca crear el cliente adentro.
+
 ### Generación de movimientos y omisiones
 
 `/mes-actual` genera los movimientos del período vigente a partir de las
@@ -217,6 +232,64 @@ la vista compacta (nombre, fecha/día, método, monto, estado) y el
 formulario. Al guardar se vuelve a la vista compacta. Nuevas grillas
 editables en móvil deberían seguir este mismo patrón en vez de mostrar el
 formulario siempre.
+
+### useFilasOptimistas: pasar la lista tal cual llega por props
+
+El hook suelta sus parches optimistas cada vez que la lista que recibe
+cambia de **referencia**, no de contenido (ver el `useEffect` en
+`useFilasOptimistas.ts`). Si un componente arma esa lista con un literal
+nuevo en cada render en vez de pasar la prop tal cual (por ejemplo
+`[...a, ...b]` o `grupos.flatMap(...)` calculado en el cuerpo de la
+función), cualquier re-render local — incluido el que dispara el propio
+clic en un botón — invalida el parche recién aplicado antes de que
+lleguen los datos frescos del servidor, y la fila no desaparece (o
+desaparece y vuelve a aparecer según qué gane la carrera). Si hace falta
+derivar la lista a partir de las props en vez de pasarlas directo,
+memoizarla con `useMemo` sobre esas props (ver `PanelRescateHoy.tsx` y
+`RescatadoPorMetodo.tsx`).
+
+### Previsiones: pendientes de cualquier período, no solo el vigente
+
+`/previsiones` calcula el saldo al cierre del período vigente restando los
+gastos pendientes y sumando los ingresos pendientes. Esas consultas filtran
+`periodo <= periodoActual`, no `periodo = periodoActual`: un gasto que
+quedó pendiente de un período que ya cerró (nunca se rescató ni se pagó,
+así que nunca impactó `fund_movements`) igual va a salir del fondo en
+algún momento y tiene que descontar la proyección.
+
+### Favicon
+
+`src/app/icon.tsx` y `apple-icon.tsx` generan el ícono en runtime con
+`ImageResponse` de `next/og`, reutilizando el signo ₲ de la marca (el
+mismo del login) sobre el verde pino de la paleta. La fuente (IBM Plex
+Mono 600) se empaqueta local en `src/app/fonts/` en vez de dejar que Next
+la resuelva sola: el fallback dinámico de satori para ese glifo específico
+pega a Google Fonts en build y a veces devuelve 400, dejando el ícono en
+blanco — mismo motivo por el que `layout.tsx` no usa `next/font` para el
+resto de la app. El matcher de `middleware.ts` excluye `/icon` y
+`/apple-icon`: sin eso, un visitante sin sesión (como en `/login`, donde
+más se nota) recibía un 307 a `/login` en vez del PNG.
+
+### Dashboard: Rescatar y Pagar en secciones separadas, agrupadas por método de pago
+
+"Para rescatar antes del mediodía" (lo que vence hoy + atrasados de meses
+anteriores) solo tiene el botón Rescatar; "Rescatado del mes, por método de
+pago" solo tiene Pagar — mezclar las dos acciones en una sola sección la
+sobrecargaba, y cada una corresponde a un paso distinto del flujo
+(`PanelRescateHoy.tsx`, `RescatadoPorMetodo.tsx`). Las dos agrupan por
+método de pago con el mismo formato compacto/desplegable (un renglón por
+método con el total, clic para ver el detalle). Nuevos paneles del
+dashboard que junten varias fuentes de gastos deberían seguir este mismo
+formato en vez de listar todo plano.
+
+### Editar la categoría de un gasto ya confirmado: gesto deliberado
+
+`/fondo` → Movimientos confirmados permite corregir la categoría de un
+gasto ya pagado (ej. algo cargado con la categoría equivocada), pero
+detrás de un botón "Editar" por fila — nunca un `<select>` visible de
+entrada, a pedido explícito del usuario para que no sea fácil cambiarla
+sin querer revisando la lista. Mes actual/Extras no exponen esta edición:
+ahí un gasto pagado queda de solo lectura a propósito.
 
 ### Autenticación
 
