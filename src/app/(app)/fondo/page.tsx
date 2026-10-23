@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { calcularSaldoFondo } from '@/lib/fund';
-import { getMovimientosUnificados, type FiltrosMovimientos } from '@/lib/movimientos';
+import { getMovimientosUnificados, SIN_CATEGORIA, type FiltrosMovimientos } from '@/lib/movimientos';
 import { toISODate, getPeriodosAnteriores, formatPeriodoCorto } from '@/lib/period';
 import { construirExtractoMensual, construirBufferExtracto } from '@/lib/extractoMensual';
 import { sendTelegramDocumentBroadcast } from '@/lib/telegram';
@@ -150,22 +150,28 @@ export default async function FondoPage({
     );
   }
 
-  const [{ data: movimientosFondo }, { data: chequeos }, movimientos, { data: destinatariosTelegram }] =
-    await Promise.all([
-      supabase.from('fund_movements').select('*').eq('account_id', accountId),
-      supabase
-        .from('fund_balance_checks')
-        .select('*')
-        .eq('account_id', accountId)
-        .order('fecha', { ascending: false })
-        .limit(24),
-      getMovimientosUnificados(accountId, searchParams),
-      supabase
-        .from('telegram_recipients')
-        .select('id')
-        .eq('account_id', accountId)
-        .eq('activo', true),
-    ]);
+  const [
+    { data: movimientosFondo },
+    { data: chequeos },
+    movimientos,
+    { data: destinatariosTelegram },
+    { data: categorias },
+  ] = await Promise.all([
+    supabase.from('fund_movements').select('*').eq('account_id', accountId),
+    supabase
+      .from('fund_balance_checks')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('fecha', { ascending: false })
+      .limit(24),
+    getMovimientosUnificados(accountId, searchParams),
+    supabase
+      .from('telegram_recipients')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('activo', true),
+    supabase.from('categories').select('id, nombre').eq('account_id', accountId).order('nombre'),
+  ]);
 
   const saldoActual = calcularSaldoFondo(movimientosFondo ?? []);
   const totalGastos = movimientos.filter((m) => m.tipo === 'Gasto').reduce((a, m) => a + m.monto, 0);
@@ -190,7 +196,12 @@ export default async function FondoPage({
     .map((p) => ({ iso: toISODate(p), label: formatPeriodoCorto(p) }));
 
   const hayFiltros = Boolean(
-    searchParams.q || searchParams.tipo || searchParams.origen || searchParams.desde || searchParams.hasta
+    searchParams.q ||
+      searchParams.tipo ||
+      searchParams.origen ||
+      searchParams.categoria ||
+      searchParams.desde ||
+      searchParams.hasta
   );
   const queryString = new URLSearchParams(
     Object.entries(searchParams).filter(([, v]) => v) as [string, string][]
@@ -321,7 +332,25 @@ export default async function FondoPage({
                 <option value="Fondo">Fondo</option>
               </select>
             </div>
-            <div className="hidden sm:block" />
+            <div>
+              <label className="label" htmlFor="categoria">
+                Categoría
+              </label>
+              <select
+                id="categoria"
+                name="categoria"
+                defaultValue={searchParams.categoria ?? ''}
+                className="field"
+              >
+                <option value="">Todas</option>
+                {(categorias ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+                <option value={SIN_CATEGORIA}>Sin categoría</option>
+              </select>
+            </div>
             <div>
               <label className="label" htmlFor="desde">
                 Desde
@@ -371,6 +400,7 @@ export default async function FondoPage({
             nombre: m.nombre,
             fecha: toISODate(m.fecha),
             monto: m.monto,
+            categoriaNombre: m.categoriaNombre,
           }))}
         />
 
@@ -383,6 +413,7 @@ export default async function FondoPage({
             q: searchParams.q,
             tipo: searchParams.tipo,
             origen: searchParams.origen,
+            categoria: searchParams.categoria,
             desde: searchParams.desde,
             hasta: searchParams.hasta,
           }}

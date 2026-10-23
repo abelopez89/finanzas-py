@@ -10,6 +10,7 @@ export type MovimientoVista = {
   nombre: string;
   fecha: string;
   monto: number;
+  categoriaNombre: string | null;
 };
 
 const TIPO_COLOR: Record<string, string> = {
@@ -34,6 +35,7 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
               <p className="mt-0.5 text-xs text-ink-400">
                 {m.fecha} · {m.tipo}
                 {m.origen !== 'Fondo' && ` · ${m.origen}`}
+                {m.categoriaNombre && ` · ${m.categoriaNombre}`}
               </p>
             </div>
             <Money
@@ -55,6 +57,7 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
               <th className="px-4 py-2.5 font-semibold">Tipo</th>
               <th className="px-4 py-2.5 font-semibold">Origen</th>
               <th className="px-4 py-2.5 font-semibold">Detalle</th>
+              <th className="px-4 py-2.5 font-semibold">Categoría</th>
               <th className="px-4 py-2.5 text-right font-semibold">Monto</th>
             </tr>
           </thead>
@@ -74,6 +77,7 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
                 </td>
                 <td className="px-4 py-3 text-ink-500">{m.origen}</td>
                 <td className="px-4 py-3 font-medium text-ink">{m.nombre}</td>
+                <td className="px-4 py-3 text-ink-500">{m.categoriaNombre ?? '—'}</td>
                 <td className="px-4 py-3 text-right">
                   <Money
                     value={m.monto}
@@ -85,7 +89,7 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
             ))}
             {movimientos.length === 0 && (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={6}>
                   <EmptyState mensaje="No hay movimientos que coincidan." />
                 </td>
               </tr>

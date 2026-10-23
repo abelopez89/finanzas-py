@@ -9,13 +9,21 @@ export type MovimientoUnificado = {
   fecha: Date;
   monto: number;
   estado: string;
+  // Solo los gastos tienen categoría; ingresos e intereses/saldo inicial
+  // quedan en null.
+  categoriaId: string | null;
+  categoriaNombre: string | null;
 };
+
+/** Valor de filtro para "sin categoría asignada" (un gasto sin category_id). */
+export const SIN_CATEGORIA = 'sin-categoria';
 
 export type FiltrosMovimientos = {
   q?: string;
   tipo?: MovimientoUnificado['tipo'] | '';
   origen?: MovimientoUnificado['origen'] | '';
   estado?: string;
+  categoria?: string;
   desde?: string;
   hasta?: string;
 };
@@ -34,7 +42,11 @@ export async function getMovimientosUnificados(
   const supabase = createSupabaseServerClient();
 
   const [{ data: gastos }, { data: ingresos }, { data: fondoMovs }] = await Promise.all([
-    supabase.from('expense_entries').select('*').eq('account_id', accountId).eq('estado', 'pagado'),
+    supabase
+      .from('expense_entries')
+      .select('*, categories(nombre)')
+      .eq('account_id', accountId)
+      .eq('estado', 'pagado'),
     supabase.from('income_entries').select('*').eq('account_id', accountId).eq('estado', 'confirmado'),
     supabase
       .from('fund_movements')
@@ -57,6 +69,8 @@ export async function getMovimientosUnificados(
       fecha,
       monto: Number(g.monto),
       estado: g.estado,
+      categoriaId: g.category_id ?? null,
+      categoriaNombre: g.categories?.nombre ?? null,
     });
   }
 
@@ -72,6 +86,8 @@ export async function getMovimientosUnificados(
       fecha,
       monto: Number(i.monto),
       estado: i.estado,
+      categoriaId: null,
+      categoriaNombre: null,
     });
   }
 
@@ -84,6 +100,8 @@ export async function getMovimientosUnificados(
       fecha: new Date(`${f.fecha}T00:00:00Z`),
       monto: Number(f.monto),
       estado: 'confirmado',
+      categoriaId: null,
+      categoriaNombre: null,
     });
   }
 
@@ -92,6 +110,11 @@ export async function getMovimientosUnificados(
     if (filtros.tipo && m.tipo !== filtros.tipo) return false;
     if (filtros.origen && m.origen !== filtros.origen) return false;
     if (filtros.estado && m.estado !== filtros.estado) return false;
+    if (filtros.categoria) {
+      if (filtros.categoria === SIN_CATEGORIA ? m.categoriaId !== null : m.categoriaId !== filtros.categoria) {
+        return false;
+      }
+    }
     const fechaISO = toISODate(m.fecha);
     if (filtros.desde && fechaISO < filtros.desde) return false;
     if (filtros.hasta && fechaISO > filtros.hasta) return false;
