@@ -15,6 +15,7 @@ import Paginador from '@/components/ui/Paginador';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
 import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
 import { revalidatePath } from 'next/cache';
+import { updateCategoriaMovimiento } from '@/lib/actions/entries';
 
 async function registrarChequeoSaldo(formData: FormData) {
   'use server';
@@ -400,8 +401,11 @@ export default async function FondoPage({
             nombre: m.nombre,
             fecha: toISODate(m.fecha),
             monto: m.monto,
+            categoriaId: m.categoriaId,
             categoriaNombre: m.categoriaNombre,
           }))}
+          categorias={categorias ?? []}
+          actualizarCategoria={updateCategoriaMovimiento}
         />
 
         <Paginador
