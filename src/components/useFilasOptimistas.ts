@@ -9,6 +9,8 @@ export type ParcheFila = {
   fecha?: string;
   metodoId?: string | null;
   metodoNombre?: string | null;
+  categoriaId?: string | null;
+  categoriaNombre?: string | null;
   eliminado?: boolean;
 };
 

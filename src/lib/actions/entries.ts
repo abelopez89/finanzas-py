@@ -27,6 +27,28 @@ export async function updateExpenseEntry(formData: FormData) {
   revalidatePath(path);
 }
 
+/**
+ * Corrige la categoría de un gasto ya confirmado (pagado), para cuando se
+ * cargó mal (ej. una aspiradora como "Educación"). A propósito no vive en
+ * Mes actual/Extras — ahí una vez pagado el gasto queda de solo lectura, y
+ * esta corrección tiene que ser un gesto puntual y deliberado, no un campo
+ * siempre editable con el que sea fácil tropezar. Por eso cuelga de
+ * /fondo → Movimientos confirmados, detrás de un botón "Editar".
+ */
+export async function updateCategoriaMovimiento(formData: FormData) {
+  const id = String(formData.get('id'));
+  const categoryId = String(formData.get('category_id') || '') || null;
+  const path = String(formData.get('_path') || '/fondo');
+
+  const supabase = createSupabaseServerClient();
+  await supabase
+    .from('expense_entries')
+    .update({ category_id: categoryId, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  revalidarMesActual(path);
+}
+
 export async function updateIncomeEntry(formData: FormData) {
   const id = String(formData.get('id'));
   const dia = Number(formData.get('dia'));

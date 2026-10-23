@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Money from '@/components/ui/Money';
 import { EmptyState } from '@/components/ui/Layout';
+import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
 export type MovimientoVista = {
   id: string;
@@ -10,8 +12,11 @@ export type MovimientoVista = {
   nombre: string;
   fecha: string;
   monto: number;
+  categoriaId: string | null;
   categoriaNombre: string | null;
 };
+
+type Categoria = { id: string; nombre: string };
 
 const TIPO_COLOR: Record<string, string> = {
   Gasto: 'bg-brick-600',
@@ -20,23 +25,106 @@ const TIPO_COLOR: Record<string, string> = {
   'Saldo inicial': 'bg-ink-300',
 };
 
-export default function MovimientosList({ movimientos }: { movimientos: MovimientoVista[] }) {
+/**
+ * Corregir la categoría de un gasto ya confirmado tiene que ser un gesto
+ * puntual, no un campo siempre editable con el que sea fácil tropezar
+ * revisando la lista. Por eso queda detrás de un botón "Editar" — solo un
+ * movimiento a la vez puede estar en edición — en vez de un <select>
+ * visible de entrada.
+ */
+export default function MovimientosList({
+  movimientos,
+  categorias = [],
+  actualizarCategoria,
+}: {
+  movimientos: MovimientoVista[];
+  categorias?: Categoria[];
+  actualizarCategoria?: AccionServidor;
+}) {
   const esEgreso = (t: string) => t === 'Gasto';
+  const [editando, setEditando] = useState<string | null>(null);
+  const { visibles, enCurso, ejecutar } = useFilasOptimistas(movimientos);
+
+  const guardarCategoria = (m: MovimientoVista, e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!actualizarCategoria) return;
+    const fd = new FormData(e.currentTarget);
+    const categoryId = String(fd.get('category_id') || '');
+    fd.set('id', m.id);
+    fd.set('_path', '/fondo');
+    ejecutar(m.id, actualizarCategoria, fd, {
+      categoriaId: categoryId || null,
+      categoriaNombre: categorias.find((c) => c.id === categoryId)?.nombre ?? null,
+    });
+    setEditando(null);
+  };
+
+  const CategoriaCelda = ({ m }: { m: MovimientoVista }) => {
+    if (m.tipo !== 'Gasto' || !actualizarCategoria) {
+      return <>{m.categoriaNombre ?? '—'}</>;
+    }
+    if (editando !== m.id) {
+      return (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          {m.categoriaNombre ?? '—'}
+          <button
+            type="button"
+            onClick={() => setEditando(m.id)}
+            className="text-xs font-medium text-ink-400 underline hover:text-ink-600"
+          >
+            Editar
+          </button>
+        </span>
+      );
+    }
+    return (
+      <form onSubmit={(e) => guardarCategoria(m, e)} className="flex flex-wrap items-center gap-1.5">
+        <select
+          name="category_id"
+          defaultValue={m.categoriaId ?? ''}
+          aria-label="Categoría"
+          className="field-sm"
+        >
+          <option value="">Sin categoría</option>
+          {categorias.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="btn-row bg-canvas text-ink-700">
+          Guardar
+        </button>
+        <button type="button" onClick={() => setEditando(null)} className="btn-row text-ink-500">
+          Cancelar
+        </button>
+      </form>
+    );
+  };
 
   return (
     <>
       {/* ---------- Móvil ---------- */}
       <ul className="card divide-y divide-line overflow-hidden md:hidden">
-        {movimientos.map((m) => (
-          <li key={`${m.tipo}-${m.id}`} className="flex items-center gap-3 px-4 py-3">
+        {visibles.map((m) => (
+          <li
+            key={`${m.tipo}-${m.id}`}
+            className={`flex items-center gap-3 px-4 py-3 transition-opacity ${
+              enCurso[m.id] ? 'opacity-60' : ''
+            }`}
+          >
             <span className={`h-8 w-1 shrink-0 rounded-full ${TIPO_COLOR[m.tipo] ?? 'bg-ink-300'}`} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">{m.nombre}</p>
               <p className="mt-0.5 text-xs text-ink-400">
                 {m.fecha} · {m.tipo}
                 {m.origen !== 'Fondo' && ` · ${m.origen}`}
-                {m.categoriaNombre && ` · ${m.categoriaNombre}`}
               </p>
+              {(m.tipo === 'Gasto' || m.categoriaNombre) && (
+                <p className="mt-1 text-xs text-ink-500">
+                  <CategoriaCelda m={m} />
+                </p>
+              )}
             </div>
             <Money
               value={m.monto}
@@ -45,7 +133,7 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
             />
           </li>
         ))}
-        {movimientos.length === 0 && <EmptyState mensaje="No hay movimientos que coincidan." />}
+        {visibles.length === 0 && <EmptyState mensaje="No hay movimientos que coincidan." />}
       </ul>
 
       {/* ---------- Escritorio ---------- */}
@@ -62,8 +150,11 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {movimientos.map((m) => (
-              <tr key={`${m.tipo}-${m.id}`} className="transition-colors hover:bg-canvas/50">
+            {visibles.map((m) => (
+              <tr
+                key={`${m.tipo}-${m.id}`}
+                className={`transition-colors hover:bg-canvas/50 ${enCurso[m.id] ? 'opacity-60' : ''}`}
+              >
                 <td className="whitespace-nowrap px-4 py-3 font-mono text-[13px] text-ink-500">
                   {m.fecha}
                 </td>
@@ -77,7 +168,9 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
                 </td>
                 <td className="px-4 py-3 text-ink-500">{m.origen}</td>
                 <td className="px-4 py-3 font-medium text-ink">{m.nombre}</td>
-                <td className="px-4 py-3 text-ink-500">{m.categoriaNombre ?? '—'}</td>
+                <td className="px-4 py-3 text-ink-500">
+                  <CategoriaCelda m={m} />
+                </td>
                 <td className="px-4 py-3 text-right">
                   <Money
                     value={m.monto}
@@ -87,7 +180,7 @@ export default function MovimientosList({ movimientos }: { movimientos: Movimien
                 </td>
               </tr>
             ))}
-            {movimientos.length === 0 && (
+            {visibles.length === 0 && (
               <tr>
                 <td colSpan={6}>
                   <EmptyState mensaje="No hay movimientos que coincidan." />
