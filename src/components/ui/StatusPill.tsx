@@ -8,6 +8,10 @@ export const ESTADO_PILL: Record<string, string> = {
   rescatado: 'bg-ochre-50 text-ochre-700 ring-1 ring-inset ring-ochre-100',
   pagado: 'bg-pine-50 text-pine-700 ring-1 ring-inset ring-pine-100',
   confirmado: 'bg-pine-50 text-pine-700 ring-1 ring-inset ring-pine-100',
+  // Descuentos de salario (/salario)
+  omitido: 'bg-canvas text-ink-400 ring-1 ring-inset ring-line',
+  terminado: 'bg-pine-50 text-pine-700 ring-1 ring-inset ring-pine-100',
+  inactivo: 'bg-canvas text-ink-400 ring-1 ring-inset ring-line',
 };
 
 /** Barra vertical izquierda de la ficha en móvil — la "pestaña" del libro mayor. */
@@ -16,6 +20,9 @@ export const ESTADO_BARRA: Record<string, string> = {
   rescatado: 'bg-ochre-600',
   pagado: 'bg-pine-600',
   confirmado: 'bg-pine-600',
+  omitido: 'bg-ink-300',
+  terminado: 'bg-pine-600',
+  inactivo: 'bg-ink-300',
 };
 
 export default function StatusPill({ estado }: { estado: string }) {

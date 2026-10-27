@@ -186,3 +186,76 @@ desde ella — ni los históricos ni los del mes actual, que seguían mostrando
 el valor con el que se habían generado. Ahora, al editar una plantilla, el
 cambio se propaga automáticamente a todos los gastos generados desde ella,
 sin importar su estado.
+
+---
+
+## Descuentos de salario (`/salario`)
+
+### PASO OBLIGATORIO antes de desplegar esta versión
+
+Ejecutar en el SQL Editor de Supabase:
+
+```
+supabase/descuentos_salario.sql
+```
+
+Crea tres tablas nuevas en `finanzas_py` (`salary_sources`,
+`salary_deductions`, `salary_deduction_payments`) con RLS y el patrón de
+`auth_account_ids()`. Es idempotente. Sin este script la pantalla `/salario`
+aparece vacía y no permite guardar nada, pero el resto de la app (y el
+aviso diario) sigue funcionando igual.
+
+### Qué es
+
+Registro y recordatorio de lo que se paga con el salario **antes** de
+transferir al fondo mutuo: cuotas de préstamos, otros descuentos y la propia
+transferencia al fondo. **Es un módulo aparte**: no escribe ni lee
+`fund_movements`, `income_entries` ni `expense_entries`, así que no cambia el
+saldo del fondo, las previsiones, el extracto mensual ni los rescates.
+
+### Reglas
+
+- **Fuentes de salario**: nombre, titular (solo etiqueta: los dos usuarios de
+  la cuenta ven y editan todo), día de cobro, monto bruto, activo, orden.
+- **Conceptos** por salario: tipo `prestamo`, `transferencia_fondo` u `otro`,
+  monto de la cuota y, para préstamos, cuotas totales (opcional) y cuotas ya
+  pagadas antes de empezar a usar el módulo.
+- **Período**: ciclo 27→26 de `src/lib/period.ts`. La fecha del recordatorio
+  es el día de cobro de la fuente dentro de ese período.
+- **Pendiente** = concepto activo (y salario activo), sin registro en el
+  período y, si es préstamo con cuotas totales, con cuotas restantes > 0. Se
+  calcula al vuelo (`src/lib/salario.ts`): no se generan filas por adelantado
+  ni se usa `period_generations`/`entry_omisiones`. Solo cuenta el período
+  vigente: un concepto que no se registró en un período ya cerrado no se
+  arrastra al siguiente.
+- **Cuotas restantes** = cuotas totales − cuotas ya pagadas antes − suma de
+  `cuotas_cubiertas` de los registros `pagado`. El fin estimado es la fecha de
+  cobro del período en que cae la última cuota.
+- **Marcar pagado**: precarga cuota × cuotas cubiertas, editable. Se pueden
+  cubrir varias cuotas a la vez (adelanto): acorta el préstamo, pero el mes
+  siguiente el concepto vuelve a figurar como pendiente.
+- **Omitir este mes**: registro `omitido`, deja de figurar como pendiente.
+- **Revertir**: borra el registro del período y vuelve a pendiente.
+- Un solo registro por concepto y período (`unique (salary_deduction_id, periodo)`):
+  el adelanto va en ese mismo registro con `cuotas_cubiertas > 1`.
+- **Saldo pendiente** = bruto − lo ya debitado − lo que falta debitar en el
+  período (cuota de cada concepto pendiente; lo omitido, inactivo o
+  terminado no resta) − lo ya transferido al fondo. Antes de transferir es
+  el sugerido para la transferencia (editable); una vez transferido baja
+  a 0.
+- **Transferencia al fondo**: se precarga con el saldo pendiente. Es informativa: **no**
+  crea ningún movimiento en el fondo; el ingreso al fondo se sigue cargando
+  como hasta ahora (plantilla de ingreso o extra).
+
+### Dónde aparece
+
+- `/salario` (menú "Salario"): una tarjeta por salario con bruto, descuentos
+  del período y su estado, cuotas restantes y fin estimado, y lo transferido
+  al fondo. En escritorio el formulario de pago de un pendiente está siempre
+  visible; en móvil va detrás de "Editar"/"Cerrar".
+- Dashboard: panel "Pendientes del salario", solo si hay pendientes, agrupado
+  por salario (mismo formato desplegable que "Para rescatar antes del
+  mediodía"). El botón "Pagado" registra con el monto precargado y 1 cuota.
+- Aviso diario de Telegram: sección "Pendientes del salario" con los
+  pendientes cuya fecha de cobro del período ya llegó. El aviso sigue sin
+  mandarse solo si no hay nada ni para rescatar ni del salario.

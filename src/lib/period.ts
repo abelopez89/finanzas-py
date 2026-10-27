@@ -76,6 +76,13 @@ export function getPeriodosSiguientes(n: number, desde: Date = new Date()): Date
   return periodos;
 }
 
+/** Inicio (ISO) del período que está `n` ciclos después de `periodoISO`
+ * (negativo = antes). Se usa para proyectar, por ejemplo, en qué período
+ * cae la última cuota de un préstamo. */
+export function sumarPeriodos(periodoISO: string, n: number): string {
+  return toISODate(addMonths(new Date(`${periodoISO}T00:00:00`), n));
+}
+
 /**
  * Convierte un "día" (1-31) en una clave de orden que respeta el ciclo de
  * facturación 27→26: el día 27 es el primero del período, el 26 el último.

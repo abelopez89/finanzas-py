@@ -1,6 +1,7 @@
 import { fechaDeEntry, toISODate } from '@/lib/period';
 import { calcularSaldoFondo } from '@/lib/fund';
 import { escapeHtml } from '@/lib/telegram';
+import { obtenerPendientesSalario } from '@/lib/salario';
 
 const fmtGs = (n: number) => `₲ ${new Intl.NumberFormat('es-PY').format(Math.round(n))}`;
 
@@ -19,10 +20,11 @@ type GastoAviso = {
 
 /**
  * Arma el aviso diario de una cuenta: gastos que vencen hoy, los que ya
- * quedaron atrás sin pagar, y el saldo del fondo.
+ * quedaron atrás sin pagar, los descuentos de salario pendientes cuyo
+ * cobro ya llegó, y el saldo del fondo.
  *
- * Si no hay nada pendiente de rescatar (ni vence hoy ni quedó atrasado),
- * devuelve `null` y no arma mensaje: un aviso diario que siempre llega se
+ * Si no hay nada pendiente de rescatar (ni vence hoy ni quedó atrasado) ni
+ * ningún descuento de salario por registrar, devuelve `null` y no arma mensaje: un aviso diario que siempre llega se
  * vuelve ruido que se termina ignorando. `forzar` salta ese corte, para el
  * botón de prueba en Configuración → Telegram (ahí interesa confirmar que
  * el token/chat_id funcionan aunque no haya nada que rescatar).
@@ -37,13 +39,16 @@ export async function construirAvisoDiario(
 ): Promise<string | null> {
   const hoyISO = toISODate(new Date());
 
-  const [{ data: gastos }, { data: movimientos }] = await Promise.all([
+  const [{ data: gastos }, { data: movimientos }, pendientesSalario] = await Promise.all([
     supabase
       .from('expense_entries')
       .select('nombre, monto, estado, dia, periodo, es_extra, fecha_vencimiento, payment_methods(nombre)')
       .eq('account_id', accountId)
       .neq('estado', 'pagado'),
     supabase.from('fund_movements').select('tipo, monto').eq('account_id', accountId),
+    // Mismo cliente que llegó por parámetro: desde el cron es el de service
+    // role, sin sesión (ver nota en construirResumenSalarios).
+    obtenerPendientesSalario(supabase, accountId),
   ]);
 
   const saldo = calcularSaldoFondo(movimientos ?? []);
@@ -71,7 +76,20 @@ export async function construirAvisoDiario(
   // Lo único que realmente requiere acción es lo pendiente: un vencimiento
   // de hoy ya rescatado no necesita que nadie haga nada.
   const porRescatarHoy = vencenHoy.filter((g) => g.estado === 'pendiente');
-  if (!opciones.forzar && porRescatarHoy.length === 0 && atrasados.length === 0) {
+
+  // Descuentos de salario: solo los que ya se pueden pagar, o sea cuya
+  // fecha de cobro del período llegó. Uno que se cobra el 25 no tiene
+  // sentido avisarlo el 28 del mes anterior.
+  const salarioPendiente = pendientesSalario
+    .filter((p) => p.fechaCobroISO <= hoyISO)
+    .sort((a, b) => a.fechaCobroISO.localeCompare(b.fechaCobroISO));
+
+  if (
+    !opciones.forzar &&
+    porRescatarHoy.length === 0 &&
+    atrasados.length === 0 &&
+    salarioPendiente.length === 0
+  ) {
     return null;
   }
 
@@ -108,6 +126,24 @@ export async function construirAvisoDiario(
 
   if (vencenHoy.length === 0 && atrasados.length === 0) {
     bloques.push('\n✅ No hay vencimientos para hoy ni pendientes atrasados.');
+  }
+
+  if (salarioPendiente.length > 0) {
+    bloques.push(
+      `\n💼 <b>Pendientes del salario (${salarioPendiente.length})</b>\n` +
+        salarioPendiente
+          .map((p) => {
+            const partes = [
+              `• <b>${escapeHtml(p.nombre)}</b> — ${fmtGs(p.monto)}`,
+              escapeHtml(p.salarioNombre),
+            ];
+            if (p.cuotasRestantes !== null) {
+              partes.push(`quedan ${p.cuotasRestantes} cuota${p.cuotasRestantes === 1 ? '' : 's'}`);
+            }
+            return partes.join(' · ');
+          })
+          .join('\n')
+    );
   }
 
   bloques.push(`\n🏦 Saldo del fondo: <b>${fmtGs(saldo)}</b>`);

@@ -21,6 +21,9 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import { Section, EmptyState, Aviso } from '@/components/ui/Layout';
 import { cambiarEstadoGasto } from '@/lib/actions/entries';
+import PanelPendientesSalario from '@/components/PanelPendientesSalario';
+import { obtenerPendientesSalario } from '@/lib/salario';
+import { marcarDescuentoPagado } from '@/lib/actions/salario';
 
 function periodoKeyFor(fechaStr: string): string {
   return toISODate(getInicioPeriodoActual(new Date(`${fechaStr}T00:00:00Z`)));
@@ -48,6 +51,7 @@ export default async function DashboardPage() {
     { data: gastosPeriodoConCategoria },
     { data: pagadosDelMes },
     { data: pendientesTodos },
+    pendientesSalario,
   ] = await Promise.all([
     supabase.from('fund_movements').select('*').eq('account_id', accountId).order('fecha'),
     supabase
@@ -74,6 +78,9 @@ export default async function DashboardPage() {
       .select('*, payment_methods(nombre)')
       .eq('account_id', accountId)
       .eq('estado', 'pendiente'),
+    // Módulo aparte (descuentos de salario): solo recordatorio, no entra
+    // en ninguna de las cifras del fondo de esta página.
+    obtenerPendientesSalario(supabase, accountId, periodoActualISO),
   ]);
 
   const saldoActual = calcularSaldoFondo(movimientos ?? []);
@@ -196,6 +203,14 @@ export default async function DashboardPage() {
         vencenHoy={vencenHoyItems}
         atrasados={atrasadosItems}
         cambiarEstadoGasto={cambiarEstadoGasto}
+      />
+
+      {/* ---------- Pendientes del salario (solo si hay) ---------- */}
+      <PanelPendientesSalario
+        pendientes={pendientesSalario}
+        periodoISO={periodoActualISO}
+        hoyISO={hoyISO}
+        marcarPagado={marcarDescuentoPagado}
       />
 
       {/* ---------- Dos cifras de contexto ---------- */}
