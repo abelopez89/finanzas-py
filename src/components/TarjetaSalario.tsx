@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import MontoInput from '@/components/MontoInput';
 import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
@@ -11,6 +9,7 @@ import FormularioAlta from '@/components/ui/FormularioAlta';
 import { EmptyState } from '@/components/ui/Layout';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 import {
+  formatFechaSalario,
   TIPO_DESCUENTO_LABEL,
   type DescuentoResumen,
   type SalarioResumen,
@@ -29,14 +28,6 @@ export type AccionesSalario = {
   updateDeduction: AccionServidor;
   deleteDeduction: AccionServidor;
 };
-
-function fmtFecha(iso: string) {
-  return format(new Date(`${iso}T00:00:00`), 'd MMM yyyy', { locale: es });
-}
-
-function fmtFechaCorta(iso: string) {
-  return format(new Date(`${iso}T00:00:00`), 'd MMM', { locale: es });
-}
 
 function Guardando() {
   return (
@@ -187,6 +178,7 @@ function CamposDescuento({ d }: { d?: DescuentoResumen }) {
       <div>
         <label className="label">Orden</label>
         <input name="orden" type="number" defaultValue={d?.orden ?? 0} className="field" />
+        <p className="mt-1 text-xs text-ink-400">Define la posición en la lista: el número más bajo aparece primero.</p>
       </div>
     </>
   );
@@ -273,7 +265,7 @@ export default function TarjetaSalario({
             </p>
             <p className="mt-0.5 text-xs text-ink-400">
               {salario.titularNombre ? `${salario.titularNombre} · ` : ''}
-              Cobro el {fmtFechaCorta(salario.fechaCobroISO)}
+              Cobro el {formatFechaSalario(salario.fechaCobroISO)}
             </p>
           </div>
           <div className="text-right">
@@ -353,6 +345,7 @@ export default function TarjetaSalario({
             <div>
               <label className="label">Orden</label>
               <input name="orden" type="number" defaultValue={salario.orden} className="field" />
+              <p className="mt-1 text-xs text-ink-400">Define la posición en la lista: el número más bajo aparece primero.</p>
             </div>
             <label className="flex items-center gap-2 text-sm text-ink-700">
               <input type="checkbox" name="activo" defaultChecked={salario.activo} />
@@ -402,7 +395,7 @@ export default function TarjetaSalario({
                             <>
                               quedan <span className="font-medium text-ink-700">{d.cuotasRestantes}</span> de{' '}
                               {d.cuotasTotal} cuotas
-                              {d.fechaFinISO && ` · fin estimado ${fmtFecha(d.fechaFinISO)}`}
+                              {d.fechaFinISO && ` · fin estimado ${formatFechaSalario(d.fechaFinISO)}`}
                             </>
                           ) : (
                             'préstamo terminado'
@@ -413,7 +406,7 @@ export default function TarjetaSalario({
                     </p>
                     {d.estado === 'pagado' && d.pago && (
                       <p className="mt-0.5 text-xs text-ink-400">
-                        {d.pago.fechaPago && `Pagado el ${fmtFechaCorta(d.pago.fechaPago)}`}
+                        {d.pago.fechaPago && `Pagado el ${formatFechaSalario(d.pago.fechaPago)}`}
                         {d.pago.cuotasCubiertas > 1 && ` · ${d.pago.cuotasCubiertas} cuotas`}
                       </p>
                     )}

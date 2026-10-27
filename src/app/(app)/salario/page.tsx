@@ -99,6 +99,7 @@ export default async function SalarioPage() {
               Orden
             </label>
             <input id="s-orden" name="orden" type="number" defaultValue={0} className="field" />
+            <p className="mt-1 text-xs text-ink-400">Define la posición en la lista: el número más bajo aparece primero.</p>
           </div>
           <div className="sm:col-span-2">
             <button className="btn-primary w-full sm:w-auto">Agregar salario</button>
