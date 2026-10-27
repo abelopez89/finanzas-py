@@ -7,6 +7,8 @@ import IngresosTemplateTable from '@/components/IngresosTemplateTable';
 import NuevoPanel from '@/components/ui/NuevoPanel';
 import FormularioAlta from '@/components/ui/FormularioAlta';
 import { Section } from '@/components/ui/Layout';
+import { getInicioPeriodoActual, toISODate } from '@/lib/period';
+import { contarCuotas, resumirCuotas, type ResumenCuotas } from '@/lib/cuotas';
 
 // ------------------------- Server actions: gastos -------------------------
 
@@ -62,6 +64,61 @@ async function updateExpenseTemplate(formData: FormData) {
   revalidatePath('/mes-actual');
   revalidatePath('/');
   revalidatePath('/fondo');
+}
+
+/**
+ * Configura un préstamo en cuotas en la plantilla (src/lib/cuotas.ts).
+ *
+ * El usuario carga cuántas cuotas lleva pagadas EN TOTAL, porque es el
+ * número que conoce. Pero las que ya figuran rescatadas/pagadas en la app
+ * se cuentan solas, así que se guarda solo la diferencia como
+ * cuotas_pagadas_inicial; si no, una cuota pagada en la app contaría dos
+ * veces.
+ *
+ * cuotas_total se lee siempre en vivo de la plantilla (como método y
+ * categoría), pero el número de cuota de cada gasto queda congelado al
+ * generarse. Al cambiar esta configuración se renumeran los gastos ya
+ * generados de la plantilla, en orden de período, para que sigan
+ * coincidiendo con el nuevo punto de partida.
+ */
+async function updateCuotasPlantilla(formData: FormData) {
+  'use server';
+  const id = String(formData.get('id'));
+  const totalCrudo = String(formData.get('cuotas_total') ?? '').trim();
+  const cuotasTotal = totalCrudo === '' ? null : Math.max(1, Math.trunc(Number(totalCrudo)) || 1);
+  const pagadasDeclaradas = Math.max(0, Math.trunc(Number(formData.get('cuotas_pagadas'))) || 0);
+
+  const supabase = createSupabaseServerClient();
+  const { data: entries } = await supabase
+    .from('expense_entries')
+    .select('id, periodo, estado')
+    .eq('template_id', id)
+    .order('periodo');
+
+  const pagadasEnApp = (entries ?? []).filter(
+    (e) => e.estado === 'rescatado' || e.estado === 'pagado'
+  ).length;
+  const inicial = cuotasTotal === null ? 0 : Math.max(0, pagadasDeclaradas - pagadasEnApp);
+
+  await supabase
+    .from('expense_templates')
+    .update({ cuotas_total: cuotasTotal, cuotas_pagadas_inicial: inicial })
+    .eq('id', id);
+
+  // Mismo criterio que la generación: el k-ésimo gasto generado es la
+  // cuota inicial + k. Sin cuotas, se limpia la numeración.
+  await Promise.all(
+    (entries ?? []).map((e, i) =>
+      supabase
+        .from('expense_entries')
+        .update({ numero_cuota: cuotasTotal === null ? null : inicial + i + 1 })
+        .eq('id', e.id)
+    )
+  );
+
+  revalidatePath('/configuracion/plantillas');
+  revalidatePath('/mes-actual');
+  revalidatePath('/previsiones');
 }
 
 async function toggleExpenseTemplate(formData: FormData) {
@@ -138,6 +195,17 @@ export default async function PlantillasPage() {
 
   const [{ data: gastos }, { data: ingresos }, { data: metodos }, { data: categorias }] =
     await Promise.all([gastosQ, ingresosQ, metodosQ, categoriasQ]);
+
+  // Estado de los préstamos en cuotas, respecto del período vigente.
+  const periodoActualISO = toISODate(getInicioPeriodoActual());
+  const conteoCuotas = accountId
+    ? await contarCuotas(supabase, accountId, gastos ?? [], periodoActualISO)
+    : new Map();
+  const cuotas: Record<string, ResumenCuotas> = {};
+  for (const g of gastos ?? []) {
+    const r = resumirCuotas(g, conteoCuotas.get(g.id), periodoActualISO);
+    if (r) cuotas[g.id] = r;
+  }
 
   return (
     <div>
@@ -218,6 +286,8 @@ export default async function PlantillasPage() {
           categorias={categorias ?? []}
           updateExpenseTemplate={updateExpenseTemplate}
           toggleExpenseTemplate={toggleExpenseTemplate}
+          updateCuotas={updateCuotasPlantilla}
+          cuotas={cuotas}
         />
       </Section>
 

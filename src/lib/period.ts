@@ -76,6 +76,14 @@ export function getPeriodosSiguientes(n: number, desde: Date = new Date()): Date
   return periodos;
 }
 
+/** dd/mm/aaaa, el formato con el que se leen las fechas en Paraguay. Se arma
+ *  del string ISO a mano para no pasar por Date y evitar corrimientos de
+ *  zona horaria (un 2026-11-25 nunca se muestra como 24/11). */
+export function formatFechaDMA(iso: string): string {
+  const [a, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${a}`;
+}
+
 /** Inicio (ISO) del período que está `n` ciclos después de `periodoISO`
  * (negativo = antes). Se usa para proyectar, por ejemplo, en qué período
  * cae la última cuota de un préstamo. */

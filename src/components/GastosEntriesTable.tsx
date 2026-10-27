@@ -17,7 +17,16 @@ type Gasto = {
   estado: string;
   periodo: string;
   payment_methods?: { nombre: string } | null;
+  numero_cuota?: number | null;
+  expense_templates?: { cuotas_total: number | null } | null;
 };
+
+/** "cuota 13 de 60" para los gastos generados desde un préstamo en cuotas. */
+function etiquetaCuota(g: Gasto): string | null {
+  if (!g.numero_cuota) return null;
+  const total = g.expense_templates?.cuotas_total;
+  return total ? `cuota ${g.numero_cuota} de ${total}` : `cuota ${g.numero_cuota}`;
+}
 
 /** Vencido = fecha pasada y todavía sin pagar. */
 function vencido(g: Gasto) {
@@ -225,6 +234,7 @@ export default function GastosEntriesTable({
                   <p className="truncate font-medium text-ink">{g.nombre}</p>
                   <p className="mt-0.5 text-xs text-ink-400">
                     Día {g.dia}
+                    {etiquetaCuota(g) && ` · ${etiquetaCuota(g)}`}
                     {g.payment_methods?.nombre && ` · ${g.payment_methods.nombre}`}
                     {mostrarPeriodo && ` · ${periodoLabel(g.periodo)}`}
                   </p>
@@ -323,6 +333,9 @@ export default function GastosEntriesTable({
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ochre-600" title="Por vencer" />
                     ) : null}
                     {g.nombre}
+                    {etiquetaCuota(g) && (
+                      <span className="text-xs font-normal text-ink-400">{etiquetaCuota(g)}</span>
+                    )}
                   </span>
                 </td>
                 <td className="px-4 py-3 align-middle text-ink-500">
