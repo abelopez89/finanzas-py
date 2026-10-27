@@ -240,8 +240,9 @@ saldo del fondo, las previsiones, el extracto mensual ni los rescates.
   el adelanto va en ese mismo registro con `cuotas_cubiertas > 1`.
 - **Saldo pendiente** = bruto − lo ya debitado − lo que falta debitar en el
   período (cuota de cada concepto pendiente; lo omitido, inactivo o
-  terminado no resta). Es el sugerido para la transferencia al fondo,
-  editable.
+  terminado no resta) − lo ya transferido al fondo. Antes de transferir es
+  el sugerido para la transferencia (editable); una vez transferido baja
+  a 0.
 - **Transferencia al fondo**: se precarga con el saldo pendiente. Es informativa: **no**
   crea ningún movimiento en el fondo; el ingreso al fondo se sigue cargando
   como hasta ahora (plantilla de ingreso o extra).

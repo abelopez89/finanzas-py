@@ -68,7 +68,8 @@ export type SalarioResumen = {
   totalDescontado: number;
   /** Cuotas de los conceptos (no transferencia) todavía pendientes este período. */
   totalADebitar: number;
-  /** Bruto − debitado − a debitar: lo que queda para transferir al fondo. */
+  /** Bruto − debitado − a debitar − ya transferido: lo que falta
+   *  transferir al fondo. */
   saldoPendiente: number;
   /** Suma de lo pagado este período en conceptos de transferencia al fondo. */
   netoTransferido: number;
@@ -222,7 +223,7 @@ export async function construirResumenSalarios(
         (a, d) => a + (d.estado === 'pendiente' ? d.montoCuota : 0),
         0
       );
-      const saldoPendiente = montoBruto - totalDebitado - totalADebitar;
+      const saldoParaFondo = montoBruto - totalDebitado - totalADebitar;
 
       const netoTransferido = propios
         .filter((d: any) => d.tipo === 'transferencia_fondo')
@@ -234,7 +235,7 @@ export async function construirResumenSalarios(
       for (const d of descuentos) {
         if (d.tipo !== 'transferencia_fondo') continue;
         const transferidoPorOtros = netoTransferido - pagadoEnPeriodo(d);
-        d.montoSugerido = Math.max(0, saldoPendiente - transferidoPorOtros);
+        d.montoSugerido = Math.max(0, saldoParaFondo - transferidoPorOtros);
       }
 
       return {
@@ -250,7 +251,9 @@ export async function construirResumenSalarios(
         descuentos,
         totalDescontado: totalDebitado,
         totalADebitar,
-        saldoPendiente,
+        // Lo que todavía no se transfirió: llega a 0 una vez hecha la
+        // transferencia (y queda negativo si se transfirió de más).
+        saldoPendiente: saldoParaFondo - netoTransferido,
         netoTransferido,
       };
     })

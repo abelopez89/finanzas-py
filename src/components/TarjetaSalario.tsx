@@ -271,8 +271,9 @@ export default function TarjetaSalario({
           </div>
         </div>
 
-        {/* Bruto − debitado − a debitar = saldo, que es lo sugerido para el
-            fondo. Negativo = los descuentos superan el bruto cargado. */}
+        {/* Bruto − debitado − a debitar − transferido = saldo pendiente: antes
+            de transferir es lo sugerido para el fondo, después queda en 0.
+            Negativo = los descuentos superan el bruto cargado. */}
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
             <p className="text-[11px] uppercase tracking-wide text-ink-400">Debitado</p>
@@ -288,7 +289,11 @@ export default function TarjetaSalario({
               value={salario.saldoPendiente}
               className={`font-semibold ${salario.saldoPendiente < 0 ? 'text-brick-600' : 'text-ink'}`}
             />
-            <p className="text-[11px] text-ink-400">sugerido para el fondo</p>
+            <p className="text-[11px] text-ink-400">
+              {salario.netoTransferido > 0 && salario.saldoPendiente <= 0
+                ? 'ya transferido al fondo'
+                : 'sugerido para el fondo'}
+            </p>
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-wide text-ink-400">Transferido al fondo</p>
