@@ -7,6 +7,7 @@ import {
   IconMes,
   IconExtras,
   IconFondo,
+  IconSalario,
   IconPrevision,
   IconAjustes,
   IconSalir,
@@ -17,6 +18,7 @@ const NAV = [
   { href: '/mes-actual', label: 'Mes', Icon: IconMes },
   { href: '/extras', label: 'Extras', Icon: IconExtras },
   { href: '/fondo', label: 'Fondo', Icon: IconFondo },
+  { href: '/salario', label: 'Salario', Icon: IconSalario },
   { href: '/previsiones', label: 'Previsión', Icon: IconPrevision },
   { href: '/configuracion', label: 'Ajustes', Icon: IconAjustes },
 ];
@@ -27,6 +29,7 @@ const LABEL_LARGO: Record<string, string> = {
   '/mes-actual': 'Mes actual',
   '/extras': 'Extras',
   '/fondo': 'Fondo mutuo',
+  '/salario': 'Descuentos de salario',
   '/previsiones': 'Previsiones',
   '/configuracion': 'Configuración',
 };

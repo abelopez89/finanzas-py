@@ -45,6 +45,16 @@ export function IconFondo(p: { className?: string }) {
   );
 }
 
+export function IconSalario(p: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={p.className} {...base}>
+      <rect x="3.5" y="6" width="17" height="12.5" rx="2.5" />
+      <path d="M3.5 10h17" />
+      <path d="M7.5 14.5h4" />
+    </svg>
+  );
+}
+
 export function IconPrevision(p: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={p.className} {...base}>
