@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import MontoInput from '@/components/MontoInput';
+import FechaInput from '@/components/FechaInput';
 import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import NuevoPanel from '@/components/ui/NuevoPanel';
@@ -97,12 +98,12 @@ function FormPago({
         key={`monto-${montoPrecargado}`}
         className={`field-sm ${compacto ? 'w-full' : 'w-32 shrink-0'}`}
       />
-      <input
+      <FechaInput
         name="fecha_pago"
-        type="date"
         defaultValue={hoyISO}
+        required
         aria-label="Fecha de pago"
-        className={`field-sm ${compacto ? 'w-full' : 'w-36 shrink-0'}`}
+        className={compacto ? 'w-full' : 'w-40 shrink-0'}
       />
       <button
         type="submit"
