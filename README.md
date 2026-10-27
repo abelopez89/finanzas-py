@@ -238,8 +238,11 @@ saldo del fondo, las previsiones, el extracto mensual ni los rescates.
 - **Revertir**: borra el registro del período y vuelve a pendiente.
 - Un solo registro por concepto y período (`unique (salary_deduction_id, periodo)`):
   el adelanto va en ese mismo registro con `cuotas_cubiertas > 1`.
-- **Transferencia al fondo**: sugerido = bruto − los demás descuentos ya
-  pagados de ese salario en el período, editable. Es informativa: **no**
+- **Saldo pendiente** = bruto − lo ya debitado − lo que falta debitar en el
+  período (cuota de cada concepto pendiente; lo omitido, inactivo o
+  terminado no resta). Es el sugerido para la transferencia al fondo,
+  editable.
+- **Transferencia al fondo**: se precarga con el saldo pendiente. Es informativa: **no**
   crea ningún movimiento en el fondo; el ingreso al fondo se sigue cargando
   como hasta ahora (plantilla de ingreso o extra).
 

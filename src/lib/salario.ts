@@ -48,7 +48,7 @@ export type DescuentoResumen = {
   /** Fecha de cobro del período en que cae la última cuota restante. */
   fechaFinISO: string | null;
   /** Monto a precargar al marcar pagado (1 cuota). Para la transferencia
-   *  al fondo es el bruto menos los demás descuentos ya pagados. */
+   *  al fondo es el saldo del salario (ver saldoPendiente). */
   montoSugerido: number;
 };
 
@@ -66,6 +66,10 @@ export type SalarioResumen = {
   descuentos: DescuentoResumen[];
   /** Suma de lo pagado este período en conceptos que no son la transferencia. */
   totalDescontado: number;
+  /** Cuotas de los conceptos (no transferencia) todavía pendientes este período. */
+  totalADebitar: number;
+  /** Bruto − debitado − a debitar: lo que queda para transferir al fondo. */
+  saldoPendiente: number;
   /** Suma de lo pagado este período en conceptos de transferencia al fondo. */
   netoTransferido: number;
 };
@@ -152,9 +156,8 @@ export async function construirResumenSalarios(
         const pago = pagoDelPeriodo.get(d.id);
         return pago?.estado === 'pagado' ? pago.monto : 0;
       };
-      const totalPagado = propios.reduce((a: number, d: any) => a + pagadoEnPeriodo(d), 0);
 
-      const descuentos = propios
+      const descuentos: DescuentoResumen[] = propios
         .map((d: any): DescuentoResumen => {
           const tipo = d.tipo as TipoDescuento;
           const montoCuota = Number(d.monto_cuota);
@@ -183,12 +186,9 @@ export async function construirResumenSalarios(
             fechaFinISO = toISODate(fechaDeEntry(sumarPeriodos(periodoISO, offset), diaCobro));
           }
 
-          // La transferencia al fondo es "lo que sobra": el bruto menos los
-          // demás descuentos ya pagados de este salario en el período.
-          const montoSugerido =
-            tipo === 'transferencia_fondo'
-              ? Math.max(0, montoBruto - (totalPagado - pagadoEnPeriodo(d)))
-              : montoCuota;
+          // La transferencia al fondo se completa abajo, cuando ya se
+          // conoce el saldo del salario.
+          const montoSugerido = montoCuota;
 
           return {
             id: d.id,
@@ -209,9 +209,33 @@ export async function construirResumenSalarios(
         })
         .sort(porOrden);
 
+      // Saldo del salario = bruto − lo ya debitado − lo que falta debitar
+      // este período (todo menos la transferencia al fondo, que es justamente
+      // lo que sobra). Lo pendiente cuenta por su cuota; lo omitido, inactivo
+      // o terminado no se va a debitar y no resta.
+      const noTransferencia = descuentos.filter((d) => d.tipo !== 'transferencia_fondo');
+      const totalDebitado = noTransferencia.reduce(
+        (a, d) => a + (d.estado === 'pagado' ? (d.pago?.monto ?? 0) : 0),
+        0
+      );
+      const totalADebitar = noTransferencia.reduce(
+        (a, d) => a + (d.estado === 'pendiente' ? d.montoCuota : 0),
+        0
+      );
+      const saldoPendiente = montoBruto - totalDebitado - totalADebitar;
+
       const netoTransferido = propios
         .filter((d: any) => d.tipo === 'transferencia_fondo')
         .reduce((a: number, d: any) => a + pagadoEnPeriodo(d), 0);
+
+      // Ese saldo es el sugerido para la transferencia al fondo. Si hubiera
+      // más de un concepto de transferencia, cada uno descuenta lo que ya se
+      // transfirió por los otros.
+      for (const d of descuentos) {
+        if (d.tipo !== 'transferencia_fondo') continue;
+        const transferidoPorOtros = netoTransferido - pagadoEnPeriodo(d);
+        d.montoSugerido = Math.max(0, saldoPendiente - transferidoPorOtros);
+      }
 
       return {
         id: f.id,
@@ -224,7 +248,9 @@ export async function construirResumenSalarios(
         orden: Number(f.orden ?? 0),
         fechaCobroISO: toISODate(fechaDeEntry(periodoISO, diaCobro)),
         descuentos,
-        totalDescontado: totalPagado - netoTransferido,
+        totalDescontado: totalDebitado,
+        totalADebitar,
+        saldoPendiente,
         netoTransferido,
       };
     })

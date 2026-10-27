@@ -217,10 +217,6 @@ export default function TarjetaSalario({
   // la lista cambia de referencia (ver CLAUDE.md).
   const { visibles, enCurso, ejecutar } = useFilasOptimistas(salario.descuentos);
 
-  const transferenciaPendiente = visibles.find(
-    (d) => d.tipo === 'transferencia_fondo' && d.estado === 'pendiente'
-  );
-
   const pagar = (d: DescuentoResumen, fd: FormData) => {
     fd.set('id', d.id);
     fd.set('periodo', periodoISO);
@@ -275,21 +271,28 @@ export default function TarjetaSalario({
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        {/* Bruto − debitado − a debitar = saldo, que es lo sugerido para el
+            fondo. Negativo = los descuentos superan el bruto cargado. */}
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-ink-400">Descontado</p>
+            <p className="text-[11px] uppercase tracking-wide text-ink-400">Debitado</p>
             <Money value={salario.totalDescontado} signo="egreso" className="font-medium text-brick-600" />
           </div>
-          <div className="text-right">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-ink-400">A debitar</p>
+            <Money value={salario.totalADebitar} signo="egreso" className="font-medium text-ochre-700" />
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-ink-400">Saldo pendiente</p>
+            <Money
+              value={salario.saldoPendiente}
+              className={`font-semibold ${salario.saldoPendiente < 0 ? 'text-brick-600' : 'text-ink'}`}
+            />
+            <p className="text-[11px] text-ink-400">sugerido para el fondo</p>
+          </div>
+          <div>
             <p className="text-[11px] uppercase tracking-wide text-ink-400">Transferido al fondo</p>
-            {salario.netoTransferido > 0 || !transferenciaPendiente ? (
-              <Money value={salario.netoTransferido} className="font-medium text-pine-700" />
-            ) : (
-              <p className="text-ochre-700">
-                <span className="mr-1 text-[11px]">sugerido</span>
-                <Money value={transferenciaPendiente.montoSugerido} className="font-medium" />
-              </p>
-            )}
+            <Money value={salario.netoTransferido} className="font-medium text-pine-700" />
           </div>
         </div>
 
