@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Money from '@/components/ui/Money';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
-import { formatFechaSalario, TIPO_DESCUENTO_LABEL, type PendienteSalario } from '@/lib/salario';
+import { TIPO_DESCUENTO_LABEL, type PendienteSalario } from '@/lib/salario';
+import { formatFechaDMA } from '@/lib/period';
 
 /**
  * "Pendientes del salario" del dashboard: conceptos del período sin
@@ -110,7 +111,7 @@ export default function PanelPendientesSalario({
                   <p className="truncate text-sm font-medium text-ink">{grupo.nombre}</p>
                   <p className="text-xs text-ink-400">
                     {grupo.items.length} {grupo.items.length === 1 ? 'concepto' : 'conceptos'} · cobro el{' '}
-                    {formatFechaSalario(grupo.fechaCobroISO)}
+                    {formatFechaDMA(grupo.fechaCobroISO)}
                   </p>
                 </div>
                 <Money value={grupo.total} className="shrink-0 font-medium text-ochre-700" />

@@ -209,6 +209,13 @@ propósito si se comporta como el monto (vigencia, congelado) o como el
 método/categoría (propagación inmediata) — no asumir ninguno de los dos por
 default.
 
+Las cuotas de préstamo (`cuotas_total`, `cuotas_pagadas_inicial`, ver
+`src/lib/cuotas.ts`) son un caso mixto deliberado: `cuotas_total` se lee en
+vivo de la plantilla, pero `numero_cuota` queda congelado en cada gasto al
+generarse, y solo se renumera cuando se edita la configuración de cuotas de
+esa plantilla. Una cuota cuenta como pagada al llegar a rescatado o pagado,
+igual que la regla del fondo.
+
 ### Server vs. Client Components
 
 Patrón dominante: página `async` (Server Component) que hace las consultas a

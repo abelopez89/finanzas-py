@@ -10,12 +10,12 @@ import FormularioAlta from '@/components/ui/FormularioAlta';
 import { EmptyState } from '@/components/ui/Layout';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 import {
-  formatFechaSalario,
   TIPO_DESCUENTO_LABEL,
   type DescuentoResumen,
   type SalarioResumen,
   type TipoDescuento,
 } from '@/lib/salario';
+import { formatFechaDMA } from '@/lib/period';
 
 type Usuario = { id: string; nombre: string };
 
@@ -262,7 +262,7 @@ export default function TarjetaSalario({
             </p>
             <p className="mt-0.5 text-xs text-ink-400">
               {salario.titularNombre ? `${salario.titularNombre} · ` : ''}
-              Cobro el {formatFechaSalario(salario.fechaCobroISO)}
+              Cobro el {formatFechaDMA(salario.fechaCobroISO)}
             </p>
           </div>
           <div className="text-right">
@@ -404,7 +404,7 @@ export default function TarjetaSalario({
                             <>
                               quedan <span className="font-medium text-ink-700">{d.cuotasRestantes}</span> de{' '}
                               {d.cuotasTotal} cuotas
-                              {d.fechaFinISO && ` · fin estimado ${formatFechaSalario(d.fechaFinISO)}`}
+                              {d.fechaFinISO && ` · fin estimado ${formatFechaDMA(d.fechaFinISO)}`}
                             </>
                           ) : (
                             'préstamo terminado'
@@ -415,7 +415,7 @@ export default function TarjetaSalario({
                     </p>
                     {d.estado === 'pagado' && d.pago && (
                       <p className="mt-0.5 text-xs text-ink-400">
-                        {d.pago.fechaPago && `Pagado el ${formatFechaSalario(d.pago.fechaPago)}`}
+                        {d.pago.fechaPago && `Pagado el ${formatFechaDMA(d.pago.fechaPago)}`}
                         {d.pago.cuotasCubiertas > 1 && ` · ${d.pago.cuotasCubiertas} cuotas`}
                       </p>
                     )}

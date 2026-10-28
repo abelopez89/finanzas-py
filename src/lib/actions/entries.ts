@@ -5,6 +5,7 @@ import { getCurrentAccountId } from '@/lib/supabase/account';
 import { getInicioPeriodoActual, toISODate } from '@/lib/period';
 import { revalidatePath } from 'next/cache';
 import { plantillasVigentes } from '@/lib/vigencias';
+import { contarCuotas, numeroDeCuota, tieneCuotas } from '@/lib/cuotas';
 
 function diaDeFecha(fechaISO: string): number {
   return Number(fechaISO.slice(8, 10));
@@ -269,8 +270,17 @@ export async function generarMovimientosParaPeriodo(
 
   const yaCreadosGasto = new Set((existentesGasto ?? []).map((e) => e.template_id));
 
-  const nuevosGastos = plantillasVigentes(plantillasGasto ?? [], vigenciasGasto ?? [], periodo)
-    .filter((t) => !yaCreadosGasto.has(t.id) && !omitidosGasto.has(t.id))
+  const gastosAGenerar = plantillasVigentes(plantillasGasto ?? [], vigenciasGasto ?? [], periodo).filter(
+    (t) => !yaCreadosGasto.has(t.id) && !omitidosGasto.has(t.id)
+  );
+
+  // Préstamos en cuotas: cada gasto lleva su número de cuota, y una
+  // plantilla que ya generó su última cuota deja de generarse sola (ver
+  // src/lib/cuotas.ts). Sin plantillas con cuotas no hay consulta extra.
+  const conteoCuotas = await contarCuotas(supabase, accountId, gastosAGenerar, periodo);
+
+  const nuevosGastos = gastosAGenerar
+    .filter((t) => !tieneCuotas(t) || numeroDeCuota(t, conteoCuotas.get(t.id)) <= Number(t.cuotas_total))
     .map((t) => ({
       account_id: accountId,
       template_id: t.id,
@@ -282,6 +292,9 @@ export async function generarMovimientosParaPeriodo(
       payment_method_id: t.payment_method_id,
       category_id: t.category_id,
       estado: 'pendiente',
+      // Solo se manda la columna cuando aplica, así una plantilla común no
+      // depende de que cuotas_plantillas.sql esté corrido.
+      ...(tieneCuotas(t) ? { numero_cuota: numeroDeCuota(t, conteoCuotas.get(t.id)) } : {}),
     }));
 
   const yaCreadosIngreso = new Set((existentesIngreso ?? []).map((e) => e.template_id));

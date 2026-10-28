@@ -86,14 +86,6 @@ export type PendienteSalario = {
   cuotasRestantes: number | null;
 };
 
-/** dd/mm/aaaa, el formato con el que se leen las fechas en Paraguay. Se arma
- *  del string ISO a mano para no pasar por Date y evitar corrimientos de
- *  zona horaria (un 2026-11-25 nunca se muestra como 24/11). */
-export function formatFechaSalario(iso: string): string {
-  const [a, m, d] = iso.slice(0, 10).split('-');
-  return `${d}/${m}/${a}`;
-}
-
 const porOrden = (a: { orden: number; nombre: string }, b: { orden: number; nombre: string }) =>
   a.orden - b.orden || a.nombre.localeCompare(b.nombre, 'es');
 

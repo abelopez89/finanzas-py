@@ -259,3 +259,46 @@ saldo del fondo, las previsiones, el extracto mensual ni los rescates.
 - Aviso diario de Telegram: sección "Pendientes del salario" con los
   pendientes cuya fecha de cobro del período ya llegó. El aviso sigue sin
   mandarse solo si no hay nada ni para rescatar ni del salario.
+
+---
+
+## Préstamos en cuotas en las plantillas de gastos
+
+### PASO OBLIGATORIO antes de desplegar esta versión
+
+Ejecutar en el SQL Editor de Supabase:
+
+```
+supabase/cuotas_plantillas.sql
+```
+
+Agrega `cuotas_total` y `cuotas_pagadas_inicial` a `expense_templates`, y
+`numero_cuota` a `expense_entries`. Es idempotente. **Sin este script, Mes
+actual, Configuración → Plantillas y Previsiones fallan**, porque ya leen
+esas columnas.
+
+### Qué hace
+
+Mismo concepto que los préstamos de `/salario`, aplicado a los gastos de la
+plantilla mensual (`src/lib/cuotas.ts`):
+
+- En Configuración → Plantillas, cada gasto tiene un botón "Cuotas" para
+  cargar las cuotas totales y cuántas lleva pagadas **en total** hasta hoy.
+  Las que ya figuran rescatadas/pagadas en la app se descuentan solas; en la
+  base se guarda solo la diferencia (`cuotas_pagadas_inicial`). Dejar
+  "Cuotas totales" vacío lo vuelve un gasto sin fin, como antes.
+- La plantilla muestra "quedan N de T cuotas · fin estimado dd/mm/aaaa".
+- **Cuota pagada** = el gasto llegó a rescatado o pagado (lo primero que
+  pase), igual que la regla del fondo. Revertir a pendiente la vuelve a
+  sumar a las restantes.
+- Cada gasto generado guarda su número de cuota (`numero_cuota`) y Mes actual
+  muestra "cuota 13 de 60". Se congela al generar, como el monto; si se
+  cambia la configuración de cuotas de la plantilla, se renumeran los gastos
+  ya generados de esa plantilla.
+- Al llegar a la última cuota, la plantilla **deja de generar gastos sola**,
+  sin tener que desactivarla.
+- **Previsiones** proyecta el préstamo solo por las cuotas que quedan.
+- Un gasto de préstamo borrado a mano en un mes (omisión) no cuenta como
+  cuota: el préstamo se corre un mes.
+- Sin adelantos de cuotas por ahora: si alguna vez se adelanta, se corrige
+  subiendo "Ya pagadas".
