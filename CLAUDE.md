@@ -39,7 +39,9 @@ cualquier duda sobre si algo cae acá dentro, preguntar antes de actuar.
 ## Antes de cerrar cualquier tarea
 
 1. `npm run build` debe pasar. Si falla, arreglarlo antes de abrir el PR.
-2. `npm run lint` debe pasar.
+2. `npm run lint` debe pasar. Con `.eslintrc.json` (`next/core-web-vitals`)
+   presente, `next build` también corre el lint, así que un error de lint
+   frena el deploy de Vercel, no solo el chequeo local.
 3. No hay suite de tests en este repo: la verificación funcional real la hace
    el humano en el deploy preview de Vercel. Por eso el PR debe describir en
    una línea qué mirar y en qué pantalla para dar por bueno el cambio.
