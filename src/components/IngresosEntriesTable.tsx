@@ -6,6 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
+import { IconPapelera } from '@/components/ui/Icons';
 import { formatPeriodoCorto } from '@/lib/period';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
@@ -87,7 +88,7 @@ export default function IngresosEntriesTable({
   const Acciones = ({ i, compacto }: { i: Ingreso; compacto?: boolean }) => {
     const ocupado = Boolean(enCurso[i.id]);
     return (
-      <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
+      <div className={`flex items-center gap-1 ${compacto ? 'flex-wrap' : 'flex-nowrap justify-end'}`}>
         {i.estado !== 'confirmado' ? (
           <>
             <button
@@ -111,9 +112,13 @@ export default function IngresosEntriesTable({
               type="button"
               disabled={ocupado}
               onClick={() => eliminar(i)}
-              className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50"
+              aria-label="Eliminar"
+              title="Eliminar"
+              className={`btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50 ${
+                compacto ? '' : 'px-2'
+              }`}
             >
-              Eliminar
+              {compacto ? 'Eliminar' : <IconPapelera className="h-4 w-4" />}
             </button>
           </>
         ) : (
@@ -233,13 +238,13 @@ export default function IngresosEntriesTable({
                   enCurso[i.id] ? 'opacity-60' : ''
                 }`}
               >
-                <td className="px-4 py-3 align-middle font-medium text-ink">{i.nombre}</td>
+                <td className="px-4 py-2 align-middle font-medium text-ink">{i.nombre}</td>
                 {mostrarPeriodo && (
-                  <td className="px-4 py-3 align-middle text-ink-500">{periodoLabel(i.periodo)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 align-middle text-ink-500">{periodoLabel(i.periodo)}</td>
                 )}
-                <td className="px-4 py-3 align-middle">
+                <td className="px-4 py-2 align-middle">
                   {i.estado === 'confirmado' ? (
-                    <span className="text-ink-500">
+                    <span className="whitespace-nowrap text-ink-500">
                       Día {i.dia} · <Money value={i.monto} className="text-pine-700" />
                     </span>
                   ) : (
@@ -252,7 +257,7 @@ export default function IngresosEntriesTable({
                         defaultValue={i.dia}
                         key={`dia-${i.dia}`}
                         aria-label="Día"
-                        className="field-sm w-16"
+                        className="field-sm w-14"
                       />
                       <MontoInput
                         name="monto"
@@ -270,10 +275,10 @@ export default function IngresosEntriesTable({
                     </form>
                   )}
                 </td>
-                <td className="px-4 py-3 align-middle">
+                <td className="px-4 py-2 align-middle">
                   <StatusPill estado={i.estado} />
                 </td>
-                <td className="px-4 py-3 align-middle">
+                <td className="px-4 py-2 align-middle">
                   <Acciones i={i} />
                 </td>
               </tr>

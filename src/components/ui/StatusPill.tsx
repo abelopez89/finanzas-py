@@ -28,7 +28,7 @@ export const ESTADO_BARRA: Record<string, string> = {
 export default function StatusPill({ estado }: { estado: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${
         ESTADO_PILL[estado] ?? ESTADO_PILL.pendiente
       }`}
     >

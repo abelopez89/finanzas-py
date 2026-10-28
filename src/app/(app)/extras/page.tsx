@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import MontoInput from '@/components/MontoInput';
+import FechaInput from '@/components/FechaInput';
 import ExtrasList from '@/components/ExtrasList';
 import NuevoPanel from '@/components/ui/NuevoPanel';
 import FormularioAlta from '@/components/ui/FormularioAlta';
@@ -118,24 +119,22 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
             <label className="label" htmlFor="desde">
               Desde
             </label>
-            <input
+            <FechaInput
               id="desde"
               name="desde"
-              type="date"
+              tamano="base"
               defaultValue={searchParams.desde ?? ''}
-              className="field"
             />
           </div>
           <div>
             <label className="label" htmlFor="hasta">
               Hasta
             </label>
-            <input
+            <FechaInput
               id="hasta"
               name="hasta"
-              type="date"
+              tamano="base"
               defaultValue={searchParams.hasta ?? ''}
-              className="field"
             />
           </div>
           <div className="col-span-2 flex gap-2 sm:col-span-1">
@@ -186,7 +185,7 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
               <label className="label" htmlFor="g-venc">
                 Vencimiento
               </label>
-              <input id="g-venc" name="fecha_vencimiento" type="date" className="field" required />
+              <FechaInput id="g-venc" name="fecha_vencimiento" tamano="base" required />
             </div>
             <div>
               <label className="label" htmlFor="g-metodo">
@@ -266,7 +265,7 @@ export default async function ExtrasPage({ searchParams }: { searchParams: Filtr
               <label className="label" htmlFor="i-fecha">
                 Fecha
               </label>
-              <input id="i-fecha" name="fecha_aplicacion" type="date" className="field" required />
+              <FechaInput id="i-fecha" name="fecha_aplicacion" tamano="base" required />
             </div>
             <div className="sm:col-span-2">
               <button className="btn-primary w-full sm:w-auto">Agregar ingreso</button>

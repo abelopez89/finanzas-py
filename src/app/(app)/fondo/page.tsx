@@ -8,6 +8,7 @@ import { sendTelegramDocumentBroadcast } from '@/lib/telegram';
 import ExtractoMensualPanel from '@/components/ExtractoMensualPanel';
 import type { ResultadoPrueba } from '@/components/TestTelegramButton';
 import MontoInput from '@/components/MontoInput';
+import FechaInput from '@/components/FechaInput';
 import Money from '@/components/ui/Money';
 import MovimientosList from '@/components/MovimientosList';
 import ChequeosHistorial from '@/components/ChequeosHistorial';
@@ -238,12 +239,11 @@ export default async function FondoPage({
               <label className="label" htmlFor="fecha-chequeo">
                 Fecha
               </label>
-              <input
+              <FechaInput
                 id="fecha-chequeo"
                 name="fecha"
-                type="date"
+                tamano="base"
                 defaultValue={new Date().toISOString().slice(0, 10)}
-                className="field"
                 required
               />
             </div>
@@ -356,24 +356,22 @@ export default async function FondoPage({
               <label className="label" htmlFor="desde">
                 Desde
               </label>
-              <input
+              <FechaInput
                 id="desde"
                 name="desde"
-                type="date"
+                tamano="base"
                 defaultValue={searchParams.desde ?? ''}
-                className="field"
               />
             </div>
             <div>
               <label className="label" htmlFor="hasta">
                 Hasta
               </label>
-              <input
+              <FechaInput
                 id="hasta"
                 name="hasta"
-                type="date"
+                tamano="base"
                 defaultValue={searchParams.hasta ?? ''}
-                className="field"
               />
             </div>
             <div className="col-span-2 flex flex-wrap gap-2 sm:col-span-3">

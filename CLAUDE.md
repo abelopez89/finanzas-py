@@ -240,6 +240,21 @@ formulario. Al guardar se vuelve a la vista compacta. Nuevas grillas
 editables en móvil deberían seguir este mismo patrón en vez de mostrar el
 formulario siempre.
 
+En escritorio, esas tablas tienen que entrar en un renglón por fila con el
+sidebar abierto (contenido de ~1000px): método de pago y número de cuota van
+como segunda línea debajo del nombre (no como columnas propias), etiquetas y
+botones llevan `whitespace-nowrap`/`flex-nowrap`, y "Eliminar" es un ícono
+(`IconPapelera`) — en la ficha móvil sigue siendo texto.
+
+### Fechas: siempre `FechaInput`, nunca `<input type="date">`
+
+El selector nativo muestra el formato del idioma del navegador (mm/dd/aaaa
+en un Chrome en inglés) y no hay atributo que lo cambie.
+`src/components/FechaInput.tsx` se lee siempre dd/mm/aaaa, envía el ISO en
+un campo oculto con el `name` real (mismo patrón que `MontoInput`) y
+conserva el calendario nativo detrás de un botón. Para mostrar una fecha
+como texto, `formatFechaDMA` de `src/lib/period.ts`.
+
 ### useFilasOptimistas: pasar la lista tal cual llega por props
 
 El hook suelta sus parches optimistas cada vez que la lista que recibe

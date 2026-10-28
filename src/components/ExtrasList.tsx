@@ -2,11 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import MontoInput from '@/components/MontoInput';
+import FechaInput from '@/components/FechaInput';
 import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
-import { estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
+import { IconPapelera } from '@/components/ui/Icons';
+import { estaVencido, estaPorVencer, diasParaVencer, formatFechaDMA } from '@/lib/period';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
 type Metodo = { id: string; nombre: string };
@@ -35,7 +37,7 @@ function porVencer(it: Extra, esGasto: boolean) {
 
 function EtiquetaVencido() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-brick-50 px-2 py-0.5 text-[11px] font-medium text-brick-700 ring-1 ring-inset ring-brick-100">
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-brick-50 px-2 py-0.5 text-[11px] font-medium text-brick-700 ring-1 ring-inset ring-brick-100">
       <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
         <path d="M12 8v5M12 16.5v.01" />
         <circle cx="12" cy="12" r="9" />
@@ -49,7 +51,7 @@ function EtiquetaPorVencer({ it }: { it: Extra }) {
   const dias = diasParaVencer(it.periodo, it.dia);
   const texto = dias === 0 ? 'Vence hoy' : dias === 1 ? 'Vence mañana' : `Vence en ${dias} días`;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-ochre-50 px-2 py-0.5 text-[11px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100">
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-ochre-50 px-2 py-0.5 text-[11px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100">
       <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7.5V12l2.5 2" />
@@ -144,18 +146,22 @@ export default function ExtrasList({
     setEditandoMovil(null);
   };
 
+  // En escritorio el form lleva id para que el selector de método, que vive
+  // en la celda del nombre (ver la tabla), se envíe con él vía `form=`.
+  const idFormEscritorio = (it: Extra) => `extra-${it.id}`;
+
   const CamposEdicion = ({ it, compacto }: { it: Extra; compacto?: boolean }) => (
     <form
+      id={compacto ? undefined : idFormEscritorio(it)}
       onSubmit={(e) => guardar(it, e)}
       className={`flex items-center gap-2 ${compacto ? 'flex-wrap' : 'flex-nowrap'}`}
     >
-      <input
+      <FechaInput
         name={campoFecha}
-        type="date"
         defaultValue={it.fecha ?? ''}
         key={`fecha-${it.fecha}`}
         aria-label="Fecha"
-        className={`field-sm ${compacto ? 'w-full' : 'w-36 shrink-0'}`}
+        className={compacto ? 'w-full' : 'w-36 shrink-0'}
         required
       />
       <MontoInput
@@ -164,13 +170,13 @@ export default function ExtrasList({
         key={`monto-${it.monto}`}
         className={`field-sm ${compacto ? 'w-full' : 'w-32 shrink-0'}`}
       />
-      {esGasto && (
+      {esGasto && compacto && (
         <select
           name="payment_method_id"
           defaultValue={it.metodoId ?? ''}
           key={`metodo-${it.metodoId}`}
           aria-label="Método de pago"
-          className={`field-sm ${compacto ? 'w-full' : 'w-36 shrink-0'}`}
+          className="field-sm w-full"
         >
           <option value="">Sin método</option>
           {metodos.map((m) => (
@@ -195,7 +201,7 @@ export default function ExtrasList({
   const Acciones = ({ it, compacto }: { it: Extra; compacto?: boolean }) => {
     const ocupado = Boolean(enCurso[it.id]);
     return (
-      <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
+      <div className={`flex items-center gap-1 ${compacto ? 'flex-wrap' : 'flex-nowrap justify-end'}`}>
         {esGasto ? (
           <>
             {it.estado === 'pendiente' && (
@@ -262,9 +268,13 @@ export default function ExtrasList({
             type="button"
             disabled={ocupado}
             onClick={() => eliminar(it)}
-            className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50"
+            aria-label="Eliminar"
+            title="Eliminar"
+            className={`btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50 ${
+              compacto ? '' : 'px-2'
+            }`}
           >
-            Eliminar
+            {compacto ? 'Eliminar' : <IconPapelera className="h-4 w-4" />}
           </button>
         )}
         {ocupado && <Guardando />}
@@ -318,7 +328,7 @@ export default function ExtrasList({
                 <div className="min-w-0">
                   <p className="truncate font-medium text-ink">{it.nombre}</p>
                   <p className="mt-0.5 text-xs text-ink-400">
-                    {it.fecha ?? '—'}
+                    {it.fecha ? formatFechaDMA(it.fecha) : '—'}
                     {esGasto && it.metodoNombre && ` · ${it.metodoNombre}`}
                   </p>
                   {(vencido(it, esGasto) || porVencer(it, esGasto)) && (
@@ -368,11 +378,10 @@ export default function ExtrasList({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line bg-canvas/60 text-left text-[11px] uppercase tracking-wider text-ink-500">
-              <th className="px-4 py-2.5 font-semibold">Nombre</th>
-              {esGasto && <th className="px-4 py-2.5 font-semibold">Método</th>}
-              <th className="px-4 py-2.5 font-semibold">Fecha / Monto</th>
-              <th className="px-4 py-2.5 font-semibold">Estado</th>
-              <th className="px-4 py-2.5" />
+              <th className="px-3 py-2.5 font-semibold">Nombre</th>
+              <th className="px-3 py-2.5 font-semibold">Fecha / Monto</th>
+              <th className="px-3 py-2.5 font-semibold">Estado</th>
+              <th className="px-3 py-2.5" />
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -387,29 +396,56 @@ export default function ExtrasList({
                       : 'hover:bg-canvas/50'
                 }`}
               >
-                <td className="px-4 py-3 align-middle font-medium text-ink">
+                {/* El método va debajo del nombre, igual que en Mes actual. */}
+                <td className="px-3 py-2 align-middle">
                   <span className="flex items-center gap-2">
                     {vencido(it, esGasto) ? (
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brick-600" title="Vencido" />
                     ) : porVencer(it, esGasto) ? (
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ochre-600" title="Por vencer" />
                     ) : null}
-                    {it.nombre}
+                    <span className="min-w-0">
+                      <span className="block font-medium text-ink">{it.nombre}</span>
+                      {/* Pendiente: el método se edita acá mismo, con un selector
+                          que se ve como el texto gris de Mes actual, en vez de
+                          una columna propia que partía las filas en dos. Se
+                          guarda con el botón Guardar de la fila (form=). */}
+                      {esGasto && it.estado === 'pendiente' ? (
+                        <select
+                          form={idFormEscritorio(it)}
+                          name="payment_method_id"
+                          defaultValue={it.metodoId ?? ''}
+                          key={`metodo-${it.metodoId}`}
+                          aria-label="Método de pago"
+                          className="-ml-1 block max-w-full cursor-pointer rounded border-0 bg-transparent py-0 pl-1 pr-1 text-xs text-ink-400 hover:bg-canvas hover:text-ink-700 focus:outline-none focus:ring-1 focus:ring-pine-600"
+                        >
+                          <option value="">Sin método</option>
+                          {metodos.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        esGasto && (
+                          <span className="block whitespace-nowrap text-xs text-ink-400">
+                            {it.metodoNombre ?? 'Sin método'}
+                          </span>
+                        )
+                      )}
+                    </span>
                   </span>
                 </td>
-                {esGasto && (
-                  <td className="px-4 py-3 align-middle text-ink-500">{it.metodoNombre ?? '—'}</td>
-                )}
-                <td className="px-4 py-3 align-middle">
+                <td className="px-3 py-2 align-middle">
                   {it.estado !== 'pendiente' ? (
-                    <span className="text-ink-500">
-                      {it.fecha ?? '—'} · <Money value={it.monto} className="text-ink" />
+                    <span className="whitespace-nowrap text-ink-500">
+                      {it.fecha ? formatFechaDMA(it.fecha) : '—'} · <Money value={it.monto} className="text-ink" />
                     </span>
                   ) : (
                     <CamposEdicion it={it} />
                   )}
                 </td>
-                <td className="px-4 py-3 align-middle">
+                <td className="px-3 py-2 align-middle">
                   {vencido(it, esGasto) ? (
                     <EtiquetaVencido />
                   ) : porVencer(it, esGasto) ? (
@@ -418,14 +454,14 @@ export default function ExtrasList({
                     <StatusPill estado={it.estado} />
                   )}
                 </td>
-                <td className="px-4 py-3 align-middle">
+                <td className="px-3 py-2 align-middle">
                   <Acciones it={it} />
                 </td>
               </tr>
             ))}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={esGasto ? 5 : 4}>
+                <td colSpan={4}>
                   <EmptyState
                     mensaje={
                       items.length === 0

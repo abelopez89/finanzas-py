@@ -82,3 +82,12 @@ export function IconSalir(p: { className?: string }) {
     </svg>
   );
 }
+
+/** Eliminar, en las tablas de escritorio donde el texto no entra en una línea. */
+export function IconPapelera(p: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={p.className} {...base}>
+      <path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12a1.5 1.5 0 0 0 1.5 1.4h8a1.5 1.5 0 0 0 1.5-1.4l1-12M9 7V4.5h6V7" />
+    </svg>
+  );
+}
