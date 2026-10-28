@@ -146,8 +146,13 @@ export default function ExtrasList({
     setEditandoMovil(null);
   };
 
+  // En escritorio el form lleva id para que el selector de método, que vive
+  // en la celda del nombre (ver la tabla), se envíe con él vía `form=`.
+  const idFormEscritorio = (it: Extra) => `extra-${it.id}`;
+
   const CamposEdicion = ({ it, compacto }: { it: Extra; compacto?: boolean }) => (
     <form
+      id={compacto ? undefined : idFormEscritorio(it)}
       onSubmit={(e) => guardar(it, e)}
       className={`flex items-center gap-2 ${compacto ? 'flex-wrap' : 'flex-nowrap'}`}
     >
@@ -165,13 +170,13 @@ export default function ExtrasList({
         key={`monto-${it.monto}`}
         className={`field-sm ${compacto ? 'w-full' : 'w-32 shrink-0'}`}
       />
-      {esGasto && (
+      {esGasto && compacto && (
         <select
           name="payment_method_id"
           defaultValue={it.metodoId ?? ''}
           key={`metodo-${it.metodoId}`}
           aria-label="Método de pago"
-          className={`field-sm ${compacto ? 'w-full' : 'w-32 shrink-0'}`}
+          className="field-sm w-full"
         >
           <option value="">Sin método</option>
           {metodos.map((m) => (
@@ -401,10 +406,32 @@ export default function ExtrasList({
                     ) : null}
                     <span className="min-w-0">
                       <span className="block font-medium text-ink">{it.nombre}</span>
-                      {esGasto && (
-                        <span className="block whitespace-nowrap text-xs text-ink-400">
-                          {it.metodoNombre ?? 'Sin método'}
-                        </span>
+                      {/* Pendiente: el método se edita acá mismo, con un selector
+                          que se ve como el texto gris de Mes actual, en vez de
+                          una columna propia que partía las filas en dos. Se
+                          guarda con el botón Guardar de la fila (form=). */}
+                      {esGasto && it.estado === 'pendiente' ? (
+                        <select
+                          form={idFormEscritorio(it)}
+                          name="payment_method_id"
+                          defaultValue={it.metodoId ?? ''}
+                          key={`metodo-${it.metodoId}`}
+                          aria-label="Método de pago"
+                          className="-ml-1 block max-w-full cursor-pointer rounded border-0 bg-transparent py-0 pl-1 pr-1 text-xs text-ink-400 hover:bg-canvas hover:text-ink-700 focus:outline-none focus:ring-1 focus:ring-pine-600"
+                        >
+                          <option value="">Sin método</option>
+                          {metodos.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        esGasto && (
+                          <span className="block whitespace-nowrap text-xs text-ink-400">
+                            {it.metodoNombre ?? 'Sin método'}
+                          </span>
+                        )
                       )}
                     </span>
                   </span>
