@@ -6,6 +6,7 @@ import Money from '@/components/ui/Money';
 import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
+import { IconPapelera } from '@/components/ui/Icons';
 import { formatPeriodoCorto, estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
@@ -46,7 +47,7 @@ function EtiquetaPorVencer({ g }: { g: Gasto }) {
   const dias = diasParaVencer(g.periodo, g.dia);
   const texto = dias === 0 ? 'Vence hoy' : dias === 1 ? 'Vence mañana' : `Vence en ${dias} días`;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-ochre-50 px-2 py-0.5 text-[11px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100">
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-ochre-50 px-2 py-0.5 text-[11px] font-medium text-ochre-700 ring-1 ring-inset ring-ochre-100">
       <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7.5V12l2.5 2" />
@@ -58,7 +59,7 @@ function EtiquetaPorVencer({ g }: { g: Gasto }) {
 
 function EtiquetaVencido() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-brick-50 px-2 py-0.5 text-[11px] font-medium text-brick-700 ring-1 ring-inset ring-brick-100">
+    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-brick-50 px-2 py-0.5 text-[11px] font-medium text-brick-700 ring-1 ring-inset ring-brick-100">
       <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
         <path d="M12 8v5M12 16.5v.01" />
         <circle cx="12" cy="12" r="9" />
@@ -139,7 +140,7 @@ export default function GastosEntriesTable({
   const Acciones = ({ g, compacto }: { g: Gasto; compacto?: boolean }) => {
     const ocupado = Boolean(enCurso[g.id]);
     return (
-      <div className={`flex flex-wrap items-center gap-1 ${compacto ? '' : 'justify-end'}`}>
+      <div className={`flex items-center gap-1 ${compacto ? 'flex-wrap' : 'flex-nowrap justify-end'}`}>
         {g.estado === 'pendiente' && (
           <button
             type="button"
@@ -180,13 +181,19 @@ export default function GastosEntriesTable({
           </button>
         )}
         {g.estado === 'pendiente' && (
+          // En la tabla de escritorio va como ícono: el texto "Eliminar" era
+          // lo que hacía saltar los botones a un segundo renglón.
           <button
             type="button"
             disabled={ocupado}
             onClick={() => eliminar(g)}
-            className="btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50"
+            aria-label="Eliminar"
+            title="Eliminar"
+            className={`btn-row text-ink-400 hover:bg-brick-50 hover:text-brick-600 disabled:opacity-50 ${
+              compacto ? '' : 'px-2'
+            }`}
           >
-            Eliminar
+            {compacto ? 'Eliminar' : <IconPapelera className="h-4 w-4" />}
           </button>
         )}
         {ocupado && <Guardando />}
@@ -306,7 +313,6 @@ export default function GastosEntriesTable({
           <thead>
             <tr className="border-b border-line bg-canvas/60 text-left text-[11px] uppercase tracking-wider text-ink-500">
               <th className="px-4 py-2.5 font-semibold">Nombre</th>
-              <th className="px-4 py-2.5 font-semibold">Método</th>
               {mostrarPeriodo && <th className="px-4 py-2.5 font-semibold">Período</th>}
               <th className="px-4 py-2.5 font-semibold">Día / Monto</th>
               <th className="px-4 py-2.5 font-semibold">Estado</th>
@@ -325,28 +331,32 @@ export default function GastosEntriesTable({
                       : 'hover:bg-canvas/50'
                 }`}
               >
-                <td className="px-4 py-3 align-middle font-medium text-ink">
+                {/* Método y cuota van debajo del nombre, como en la ficha móvil:
+                    como columnas propias partían el renglón en dos con el
+                    sidebar abierto (tabla de ~1000px). */}
+                <td className="px-4 py-2 align-middle">
                   <span className="flex items-center gap-2">
                     {vencido(g) ? (
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brick-600" title="Vencido" />
                     ) : porVencer(g) ? (
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ochre-600" title="Por vencer" />
                     ) : null}
-                    {g.nombre}
-                    {etiquetaCuota(g) && (
-                      <span className="text-xs font-normal text-ink-400">{etiquetaCuota(g)}</span>
-                    )}
+                    <span className="min-w-0">
+                      <span className="block font-medium text-ink">{g.nombre}</span>
+                      <span className="block whitespace-nowrap text-xs text-ink-400">
+                        {[g.payment_methods?.nombre ?? 'Sin método', etiquetaCuota(g)]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </span>
                   </span>
                 </td>
-                <td className="px-4 py-3 align-middle text-ink-500">
-                  {g.payment_methods?.nombre ?? '—'}
-                </td>
                 {mostrarPeriodo && (
-                  <td className="px-4 py-3 align-middle text-ink-500">{periodoLabel(g.periodo)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 align-middle text-ink-500">{periodoLabel(g.periodo)}</td>
                 )}
-                <td className="px-4 py-3 align-middle">
+                <td className="px-4 py-2 align-middle">
                   {g.estado !== 'pendiente' ? (
-                    <span className="text-ink-500">
+                    <span className="whitespace-nowrap text-ink-500">
                       Día {g.dia} · <Money value={g.monto} className="text-ink" />
                     </span>
                   ) : (
@@ -359,7 +369,7 @@ export default function GastosEntriesTable({
                         defaultValue={g.dia}
                         key={`dia-${g.dia}`}
                         aria-label="Día"
-                        className="field-sm w-16"
+                        className="field-sm w-14"
                       />
                       <MontoInput
                         name="monto"
@@ -377,7 +387,7 @@ export default function GastosEntriesTable({
                     </form>
                   )}
                 </td>
-                <td className="px-4 py-3 align-middle">
+                <td className="px-4 py-2 align-middle">
                   {vencido(g) ? (
                     <EtiquetaVencido />
                   ) : porVencer(g) ? (
@@ -386,14 +396,14 @@ export default function GastosEntriesTable({
                     <StatusPill estado={g.estado} />
                   )}
                 </td>
-                <td className="px-4 py-3 align-middle">
+                <td className="px-4 py-2 align-middle">
                   <Acciones g={g} />
                 </td>
               </tr>
             ))}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={mostrarPeriodo ? 6 : 5}>
+                <td colSpan={mostrarPeriodo ? 5 : 4}>
                   <EmptyState
                     mensaje={
                       gastos.length === 0 ? 'No hay gastos para mostrar.' : 'Ningún gasto coincide.'

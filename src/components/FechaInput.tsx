@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 
 interface FechaInputProps {
   name: string;
+  /** Para enlazar un <label htmlFor>. Va en el campo de texto visible. */
+  id?: string;
+  /** 'sm' para grillas y filas editables, 'base' para formularios. */
+  tamano?: 'sm' | 'base';
   /** Fecha ISO (aaaa-mm-dd). */
   defaultValue?: string | null;
   required?: boolean;
@@ -49,6 +53,8 @@ function digitosAIso(digitos: string): string {
  */
 export default function FechaInput({
   name,
+  id,
+  tamano = 'sm',
   defaultValue,
   required,
   className,
@@ -90,6 +96,7 @@ export default function FechaInput({
     <div className={`relative ${className ?? ''}`}>
       <input
         ref={textoRef}
+        id={id}
         type="text"
         inputMode="numeric"
         placeholder="dd/mm/aaaa"
@@ -97,7 +104,7 @@ export default function FechaInput({
         onChange={(e) => setDigitos(e.target.value.replace(/\D/g, '').slice(0, 8))}
         required={required}
         aria-label={ariaLabel}
-        className="field-sm amount w-full pr-9"
+        className={`${tamano === 'base' ? 'field' : 'field-sm'} amount w-full pr-9`}
       />
       <button
         type="button"

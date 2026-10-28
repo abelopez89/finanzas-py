@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { revalidatePath } from 'next/cache';
 import MontoInput from '@/components/MontoInput';
+import FechaInput from '@/components/FechaInput';
 
 async function setSaldoInicial(formData: FormData) {
   'use server';
@@ -113,12 +114,11 @@ export default async function SaldoInicialPage() {
           <label className="label" htmlFor="fecha">
             Fecha
           </label>
-          <input
+          <FechaInput
             id="fecha"
             name="fecha"
-            type="date"
+            tamano="base"
             defaultValue={saldoInicial?.fecha}
-            className="field"
             required
           />
         </div>
