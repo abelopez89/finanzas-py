@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentAccountId } from '@/lib/supabase/account';
 import { calcularSaldoFondo } from '@/lib/fund';
 import { getMovimientosUnificados, SIN_CATEGORIA, type FiltrosMovimientos } from '@/lib/movimientos';
-import { toISODate, getPeriodosAnteriores, formatPeriodoCorto } from '@/lib/period';
+import { toISODate, getPeriodosAnteriores, formatPeriodoCorto, formatFechaDMA } from '@/lib/period';
 import { construirExtractoMensual, construirBufferExtracto } from '@/lib/extractoMensual';
 import { sendTelegramDocumentBroadcast } from '@/lib/telegram';
 import ExtractoMensualPanel from '@/components/ExtractoMensualPanel';
@@ -14,6 +14,7 @@ import MovimientosList from '@/components/MovimientosList';
 import ChequeosHistorial from '@/components/ChequeosHistorial';
 import Paginador from '@/components/ui/Paginador';
 import FiltrosPanel from '@/components/ui/FiltrosPanel';
+import SeccionPlegable from '@/components/ui/SeccionPlegable';
 import { PageHeader, Section, Aviso } from '@/components/ui/Layout';
 import { revalidatePath } from 'next/cache';
 import { updateCategoriaMovimiento } from '@/lib/actions/entries';
@@ -158,6 +159,7 @@ export default async function FondoPage({
     movimientos,
     { data: destinatariosTelegram },
     { data: categorias },
+    { data: rescatados },
   ] = await Promise.all([
     supabase.from('fund_movements').select('*').eq('account_id', accountId),
     supabase
@@ -173,6 +175,13 @@ export default async function FondoPage({
       .eq('account_id', accountId)
       .eq('activo', true),
     supabase.from('categories').select('id, nombre').eq('account_id', accountId).order('nombre'),
+    // La lista de abajo solo trae gastos pagados, pero la plata sale del
+    // fondo al rescatar: sin esto la cuenta contra el saldo no cerraría.
+    supabase
+      .from('expense_entries')
+      .select('monto')
+      .eq('account_id', accountId)
+      .eq('estado', 'rescatado'),
   ]);
 
   const saldoActual = calcularSaldoFondo(movimientosFondo ?? []);
@@ -183,6 +192,17 @@ export default async function FondoPage({
   const totalIntereses = movimientos
     .filter((m) => m.tipo === 'Interés')
     .reduce((a, m) => a + m.monto, 0);
+  const saldoInicial = movimientos
+    .filter((m) => m.tipo === 'Saldo inicial')
+    .reduce((a, m) => a + m.monto, 0);
+  const haySaldoInicial = movimientos.some((m) => m.tipo === 'Saldo inicial');
+  // Antes se mostraba "Neto" = ingresos − egresos: dejaba afuera intereses
+  // y saldo inicial, así que nunca coincidía con el saldo del fondo y
+  // confundía. La variación suma todo lo que mueve el saldo, y sin filtros
+  // saldo inicial + variación = saldo actual.
+  const variacion = totalIngresos + totalIntereses - totalGastos;
+  const rescatadoSinPagar = (rescatados ?? []).reduce((a, g) => a + Number(g.monto), 0);
+  const ultimoChequeo = (chequeos ?? [])[0];
 
   const paginaActual = Math.max(1, Number(searchParams.pagina) || 1);
   const totalPaginas = Math.max(1, Math.ceil(movimientos.length / POR_PAGINA));
@@ -222,8 +242,20 @@ export default async function FondoPage({
         </p>
       </section>
 
-      {/* ---------- Registrar saldo real / interés ---------- */}
-      <Section titulo="Registrar saldo real">
+      {/* ---------- Registrar saldo real / interés ----------
+          Plegada por defecto: se usa de vez en cuando. El último registro
+          se ve igual en el resumen, sin abrirla. */}
+      <SeccionPlegable
+        titulo="Registrar saldo real"
+        resumen={
+          ultimoChequeo && (
+            <>
+              Último: {formatFechaDMA(ultimoChequeo.fecha)} ·{' '}
+              <Money value={ultimoChequeo.monto_informado} size="sm" className="text-ink-500" />
+            </>
+          )
+        }
+      >
         <div className="card p-4">
           <p className="mb-3 text-sm text-ink-500">
             La diferencia contra el saldo calculado se registra como interés.
@@ -253,20 +285,25 @@ export default async function FondoPage({
           <ChequeosHistorial chequeos={chequeos ?? []} />
 
         </div>
-      </Section>
+      </SeccionPlegable>
 
-      {/* ---------- Extracto mensual ---------- */}
-      <Section titulo="Extracto mensual">
+      {/* ---------- Extracto mensual (plegado: uso ocasional) ---------- */}
+      <SeccionPlegable titulo="Extracto mensual" resumen="Excel o Telegram por período">
         <ExtractoMensualPanel
           periodos={periodosDisponibles}
           hayDestinatarios={(destinatariosTelegram ?? []).length > 0}
           enviarPorTelegram={enviarExtractoPorTelegram}
         />
-      </Section>
+      </SeccionPlegable>
 
       {/* ---------- Movimientos ---------- */}
       <Section titulo="Movimientos confirmados">
         <div className="card mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-2 px-4 py-3">
+          {haySaldoInicial && (
+            <span className="text-sm text-ink-400">
+              Saldo inicial <Money value={saldoInicial} size="sm" className="font-semibold text-ink" />
+            </span>
+          )}
           <span className="text-sm text-ink-400">
             Egresos <Money value={totalGastos} size="sm" className="font-semibold text-brick-600" />
           </span>
@@ -283,17 +320,39 @@ export default async function FondoPage({
               className={`font-semibold ${totalIntereses < 0 ? 'text-brick-600' : 'text-pine-700'}`}
             />
           </span>
-          <span className="text-sm text-ink-400">
-            Neto{' '}
+          <span
+            className="text-sm text-ink-400"
+            title="Ingresos + intereses − egresos de los movimientos listados"
+          >
+            Variación{' '}
             <Money
-              value={Math.abs(totalIngresos - totalGastos)}
-              signo={totalIngresos - totalGastos >= 0 ? 'ingreso' : 'egreso'}
+              value={Math.abs(variacion)}
+              signo={variacion >= 0 ? 'ingreso' : 'egreso'}
               size="sm"
-              className={`font-semibold ${
-                totalIngresos - totalGastos >= 0 ? 'text-pine-700' : 'text-brick-600'
-              }`}
+              className={`font-semibold ${variacion >= 0 ? 'text-pine-700' : 'text-brick-600'}`}
             />
           </span>
+          {!hayFiltros && rescatadoSinPagar > 0 && (
+            <span
+              className="text-sm text-ink-400"
+              title="Gastos rescatados (la plata ya salió del fondo) que todavía no se marcaron pagados: no figuran en esta lista"
+            >
+              Rescatado sin pagar{' '}
+              <Money value={rescatadoSinPagar} signo="egreso" size="sm" className="font-semibold text-ochre-700" />
+            </span>
+          )}
+          {/* Solo si la cuenta cierra de verdad (sin filtros y con saldo
+              inicial cargado): mejor no mostrar nada que una igualdad falsa. */}
+          {haySaldoInicial &&
+            !hayFiltros &&
+            Math.abs(saldoInicial + variacion - rescatadoSinPagar - saldoActual) < 1 && (
+              <p className="w-full text-xs text-ink-400">
+                Saldo inicial + variación
+                {rescatadoSinPagar > 0 && ' − rescatado sin pagar'} = saldo actual (
+                <Money value={saldoActual} size="sm" className="text-ink-500" />
+                ).
+              </p>
+            )}
         </div>
 
         <FiltrosPanel hayFiltrosActivos={hayFiltros}>
