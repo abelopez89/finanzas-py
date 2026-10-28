@@ -135,7 +135,7 @@ export default function PrevisionesSimulador({
       <Section titulo="Simular una compra">
         <div className="card p-4">
           <p className="mb-4 text-sm text-ink-500">
-            Probá cómo impactaría un gasto o ingreso futuro. Elegí "Todos los períodos" para
+            Probá cómo impactaría un gasto o ingreso futuro. Elegí “Todos los períodos” para
             simular una compra mensual nueva que se repite en cada período de la proyección. Es
             solo un cálculo: no se guarda en ningún lado y se borra al recargar.
           </p>
