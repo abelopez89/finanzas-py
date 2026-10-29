@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Money from '@/components/ui/Money';
+import { formatFechaDMA } from '@/lib/period';
 import { EmptyState } from '@/components/ui/Layout';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
@@ -117,7 +118,7 @@ export default function MovimientosList({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink">{m.nombre}</p>
               <p className="mt-0.5 text-xs text-ink-400">
-                {m.fecha} · {m.tipo}
+                {formatFechaDMA(m.fecha)} · {m.tipo}
                 {m.origen !== 'Fondo' && ` · ${m.origen}`}
               </p>
               {(m.tipo === 'Gasto' || m.categoriaNombre) && (
@@ -156,7 +157,7 @@ export default function MovimientosList({
                 className={`transition-colors hover:bg-canvas/50 ${enCurso[m.id] ? 'opacity-60' : ''}`}
               >
                 <td className="whitespace-nowrap px-4 py-3 font-mono text-[13px] text-ink-500">
-                  {m.fecha}
+                  {formatFechaDMA(m.fecha)}
                 </td>
                 <td className="px-4 py-3">
                   <span className="inline-flex items-center gap-2">

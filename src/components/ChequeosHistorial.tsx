@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Money from '@/components/ui/Money';
+import { formatFechaDMA } from '@/lib/period';
 
 export type Chequeo = {
   id: string;
@@ -14,7 +15,7 @@ function Fila({ c }: { c: Chequeo }) {
   const interes = Number(c.interes_calculado);
   return (
     <li className="flex items-center justify-between gap-3 py-1.5 text-sm">
-      <span className="font-mono text-[13px] text-ink-500">{c.fecha}</span>
+      <span className="font-mono text-[13px] text-ink-500">{formatFechaDMA(c.fecha)}</span>
       <span className="flex-1 truncate text-right text-ink-400">
         <Money value={c.monto_informado} size="sm" className="text-ink-500" />
       </span>

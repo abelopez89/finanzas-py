@@ -302,3 +302,20 @@ plantilla mensual (`src/lib/cuotas.ts`):
   cuota: el préstamo se corre un mes.
 - Sin adelantos de cuotas por ahora: si alguna vez se adelanta, se corrige
   subiendo "Ya pagadas".
+
+---
+
+## Fondo mutuo: secciones plegables y "Variación" en vez de "Neto"
+
+- "Registrar saldo real" y "Extracto mensual" quedan plegados por defecto
+  (`SeccionPlegable`): se usan de vez en cuando. Plegado, el primero igual
+  muestra el último registro (fecha y saldo).
+- Movimientos confirmados ya no muestra "Neto" (ingresos − egresos): dejaba
+  afuera intereses y saldo inicial, así que nunca coincidía con el saldo del
+  fondo. Ahora muestra **Variación** = ingresos + intereses − egresos, el
+  **Saldo inicial** cuando entra en la lista y, sin filtros, **Rescatado sin
+  pagar** (gastos rescatados que todavía no se marcaron pagados: la plata ya
+  salió del fondo pero no figuran en la lista de confirmados). Sin filtros,
+  si la cuenta cierra, se muestra: saldo inicial + variación − rescatado sin
+  pagar = saldo actual.
+- Las fechas de la pantalla se muestran dd/mm/aaaa.
