@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/server';
 import { sendTelegramBroadcast, sendTelegramDocumentBroadcast } from '@/lib/telegram';
 import { construirAvisoDiario } from '@/lib/avisos';
 import { construirExtractoMensual, construirBufferExtracto } from '@/lib/extractoMensual';
+import { construirAvisoFinesDeSemana } from '@/lib/finesDeSemana';
 import { getInicioPeriodoActual, toISODate } from '@/lib/period';
 
 // Sin caché: cada llamada tiene que leer el estado real del día.
@@ -15,6 +16,9 @@ export const revalidate = 0;
  * Además, el día 27 de cada mes (el día que arranca un ciclo nuevo) manda
  * el extracto en Excel del ciclo que acaba de cerrar — no del mes
  * calendario, sino del período 27-26 completo.
+ * Ese mismo día, aparte, avisa qué gastos del ciclo que arranca caen en
+ * sábado o domingo (esos días no se puede rescatar del fondo), para mover
+ * la fecha a tiempo. Ver src/lib/finesDeSemana.ts.
  *
  * Configuración en cron-job.org:
  *   URL:      https://<tu-dominio>.vercel.app/api/cron/notificar-vencimientos
@@ -80,6 +84,9 @@ export async function GET(request: NextRequest) {
     const hoy = new Date();
     const esInicioDeCiclo = hoy.getDate() === 27;
     let periodoRecienCerradoISO: string | null = null;
+    // El ciclo que arranca hoy: con el extracto se avisa qué gastos suyos
+    // caen en fin de semana, para mover la fecha antes de que llegue.
+    const periodoNuevoISO = toISODate(getInicioPeriodoActual(hoy));
     if (esInicioDeCiclo) {
       const ayer = new Date(hoy);
       ayer.setDate(ayer.getDate() - 1);
@@ -129,6 +136,22 @@ export async function GET(request: NextRequest) {
           const message = err instanceof Error ? err.message : 'Error desconocido';
           console.error(`Error con extracto mensual, cuenta ${accountId}:`, err);
           resumen.push({ accountId, extractoMensual: { error: message } });
+        }
+
+        // Va aparte del extracto (y con su propio try): si falla, el
+        // extracto ya salió igual. Sin gastos en fin de semana, no se manda.
+        try {
+          const aviso = await construirAvisoFinesDeSemana(supabase, accountId, periodoNuevoISO);
+          if (aviso === null) {
+            resumen.push({ accountId, finesDeSemana: { omitido: true, motivo: 'ninguno cae en fin de semana' } });
+          } else {
+            const { enviados, fallidos } = await sendTelegramBroadcast(chatIds, aviso);
+            resumen.push({ accountId, finesDeSemana: { enviados, fallidos } });
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Error desconocido';
+          console.error(`Error con aviso de fines de semana, cuenta ${accountId}:`, err);
+          resumen.push({ accountId, finesDeSemana: { error: message } });
         }
       }
     }

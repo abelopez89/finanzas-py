@@ -319,3 +319,23 @@ plantilla mensual (`src/lib/cuotas.ts`):
   si la cuenta cierra, se muestra: saldo inicial + variación − rescatado sin
   pagar = saldo actual.
 - Las fechas de la pantalla se muestran dd/mm/aaaa.
+
+---
+
+## Aviso de gastos que caen en fin de semana
+
+Los días fijos de las plantillas caen en sábado o domingo según el mes, y
+esos días no se pueden hacer los rescates del fondo. Por ahora es solo
+aviso: la fecha se corrige a mano.
+
+- **Mes actual y Extras**: un gasto **pendiente** cuya fecha cae en fin de
+  semana muestra "· cae sábado" / "· cae domingo" en ocre, en la línea gris
+  debajo del nombre (escritorio y móvil). Lo ya rescatado o pagado no se
+  marca.
+- **Telegram, día 27** (primer día del ciclo, junto con el extracto): un
+  mensaje aparte con los gastos del ciclo que arranca que caen en fin de
+  semana. Como ese día los gastos regulares pueden no estar generados
+  todavía, se arma desde las plantillas vigentes con las mismas reglas que
+  la generación (vigencias, omisiones, préstamos en cuotas terminados); si
+  el gasto ya existe, usa su día real. Suma los extras pendientes del
+  período. Si no hay ninguno, no se manda nada.
