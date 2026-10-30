@@ -7,7 +7,14 @@ import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
 import { IconPapelera } from '@/components/ui/Icons';
-import { formatPeriodoCorto, estaVencido, estaPorVencer, diasParaVencer } from '@/lib/period';
+import AvisoFinDeSemana from '@/components/ui/AvisoFinDeSemana';
+import {
+  formatPeriodoCorto,
+  estaVencido,
+  estaPorVencer,
+  diasParaVencer,
+  fechaISODeEntry,
+} from '@/lib/period';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
 type Gasto = {
@@ -21,6 +28,11 @@ type Gasto = {
   numero_cuota?: number | null;
   expense_templates?: { cuotas_total: number | null } | null;
 };
+
+/** Solo lo pendiente: si ya se rescató, que caiga en fin de semana no importa. */
+function fechaParaAviso(g: Gasto): string | null {
+  return g.estado === 'pendiente' ? fechaISODeEntry(g.periodo, g.dia) : null;
+}
 
 /** "cuota 13 de 60" para los gastos generados desde un préstamo en cuotas. */
 function etiquetaCuota(g: Gasto): string | null {
@@ -244,6 +256,7 @@ export default function GastosEntriesTable({
                     {etiquetaCuota(g) && ` · ${etiquetaCuota(g)}`}
                     {g.payment_methods?.nombre && ` · ${g.payment_methods.nombre}`}
                     {mostrarPeriodo && ` · ${periodoLabel(g.periodo)}`}
+                    <AvisoFinDeSemana fechaISO={fechaParaAviso(g)} />
                   </p>
                   {(vencido(g) || porVencer(g)) && (
                     <div className="mt-1.5">
@@ -347,6 +360,7 @@ export default function GastosEntriesTable({
                         {[g.payment_methods?.nombre ?? 'Sin método', etiquetaCuota(g)]
                           .filter(Boolean)
                           .join(' · ')}
+                        <AvisoFinDeSemana fechaISO={fechaParaAviso(g)} />
                       </span>
                     </span>
                   </span>

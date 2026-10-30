@@ -84,6 +84,18 @@ export function formatFechaDMA(iso: string): string {
   return `${d}/${m}/${a}`;
 }
 
+export type DiaFinDeSemana = 'sábado' | 'domingo';
+
+/**
+ * 'sábado' / 'domingo' si la fecha ISO cae en fin de semana; si no, null.
+ * Esos días no se pueden hacer rescates del fondo (ver src/lib/finesDeSemana.ts).
+ * Se lee en UTC: la fecha ISO es un día calendario, sin hora ni zona.
+ */
+export function diaFinDeSemana(fechaISO: string): DiaFinDeSemana | null {
+  const d = new Date(`${fechaISO.slice(0, 10)}T00:00:00Z`).getUTCDay();
+  return d === 6 ? 'sábado' : d === 0 ? 'domingo' : null;
+}
+
 /** Inicio (ISO) del período que está `n` ciclos después de `periodoISO`
  * (negativo = antes). Se usa para proyectar, por ejemplo, en qué período
  * cae la última cuota de un préstamo. */
@@ -111,6 +123,16 @@ export function fechaDeEntry(periodoISO: string, dia: number): Date {
     return new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), dia));
   }
   return new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, dia));
+}
+
+/**
+ * Fecha ISO (aaaa-mm-dd) de un movimiento regular. `fechaDeEntry` devuelve
+ * medianoche UTC: pasarla por `toISODate` (que formatea en hora local) en
+ * el navegador de Paraguay (UTC−3/−4) daba el día anterior. Esto toma la
+ * parte de fecha en UTC, así sirve igual en el servidor y en el cliente.
+ */
+export function fechaISODeEntry(periodoISO: string, dia: number): string {
+  return fechaDeEntry(periodoISO, dia).toISOString().slice(0, 10);
 }
 
 /**

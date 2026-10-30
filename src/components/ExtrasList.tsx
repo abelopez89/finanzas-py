@@ -8,6 +8,7 @@ import StatusPill, { ESTADO_BARRA } from '@/components/ui/StatusPill';
 import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
 import { IconPapelera } from '@/components/ui/Icons';
+import AvisoFinDeSemana from '@/components/ui/AvisoFinDeSemana';
 import { estaVencido, estaPorVencer, diasParaVencer, formatFechaDMA } from '@/lib/period';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
@@ -330,6 +331,7 @@ export default function ExtrasList({
                   <p className="mt-0.5 text-xs text-ink-400">
                     {it.fecha ? formatFechaDMA(it.fecha) : '—'}
                     {esGasto && it.metodoNombre && ` · ${it.metodoNombre}`}
+                    {esGasto && it.estado === 'pendiente' && <AvisoFinDeSemana fechaISO={it.fecha} />}
                   </p>
                   {(vencido(it, esGasto) || porVencer(it, esGasto)) && (
                     <div className="mt-1.5">
@@ -411,21 +413,24 @@ export default function ExtrasList({
                           una columna propia que partía las filas en dos. Se
                           guarda con el botón Guardar de la fila (form=). */}
                       {esGasto && it.estado === 'pendiente' ? (
-                        <select
-                          form={idFormEscritorio(it)}
-                          name="payment_method_id"
-                          defaultValue={it.metodoId ?? ''}
-                          key={`metodo-${it.metodoId}`}
-                          aria-label="Método de pago"
-                          className="-ml-1 block max-w-full cursor-pointer rounded border-0 bg-transparent py-0 pl-1 pr-1 text-xs text-ink-400 hover:bg-canvas hover:text-ink-700 focus:outline-none focus:ring-1 focus:ring-pine-600"
-                        >
-                          <option value="">Sin método</option>
-                          {metodos.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.nombre}
-                            </option>
-                          ))}
-                        </select>
+                        <span className="flex items-center text-xs">
+                          <select
+                            form={idFormEscritorio(it)}
+                            name="payment_method_id"
+                            defaultValue={it.metodoId ?? ''}
+                            key={`metodo-${it.metodoId}`}
+                            aria-label="Método de pago"
+                            className="-ml-1 block min-w-0 max-w-full cursor-pointer rounded border-0 bg-transparent py-0 pl-1 pr-1 text-xs text-ink-400 hover:bg-canvas hover:text-ink-700 focus:outline-none focus:ring-1 focus:ring-pine-600"
+                          >
+                            <option value="">Sin método</option>
+                            {metodos.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.nombre}
+                              </option>
+                            ))}
+                          </select>
+                          <AvisoFinDeSemana fechaISO={it.fecha} />
+                        </span>
                       ) : (
                         esGasto && (
                           <span className="block whitespace-nowrap text-xs text-ink-400">
