@@ -32,6 +32,15 @@ function enteroONull(formData: FormData, campo: string): number | null {
 
 const TIPOS = ['prestamo', 'transferencia_fondo', 'otro'];
 
+/**
+ * Antes el error de Supabase se ignoraba: si la base rechazaba el cambio, la
+ * acción terminaba "bien" y la pantalla volvía al dato viejo sin avisar.
+ * Ahora la acción falla, y useFilasOptimistas muestra el aviso.
+ */
+function verificar({ error }: { error: { message: string } | null }) {
+  if (error) throw new Error(`No se pudo guardar el cambio: ${error.message}`);
+}
+
 // ------------------------------ Fuentes de salario ------------------------------
 
 export async function addSalarySource(formData: FormData) {
@@ -39,21 +48,21 @@ export async function addSalarySource(formData: FormData) {
   if (!accountId) return;
 
   const supabase = createSupabaseServerClient();
-  await supabase.from('salary_sources').insert({
+  verificar(await supabase.from('salary_sources').insert({
     account_id: accountId,
     nombre: String(formData.get('nombre') || '').trim() || 'Salario',
     titular_user_id: String(formData.get('titular_user_id') || '') || null,
     dia_cobro: Math.min(31, Math.max(1, entero(formData, 'dia_cobro', 1))),
     monto_bruto: Number(formData.get('monto_bruto')) || 0,
     orden: entero(formData, 'orden', 0),
-  });
+  }));
   revalidarSalario();
 }
 
 export async function updateSalarySource(formData: FormData) {
   const id = String(formData.get('id'));
   const supabase = createSupabaseServerClient();
-  await supabase
+  verificar(await supabase
     .from('salary_sources')
     .update({
       nombre: String(formData.get('nombre') || '').trim() || 'Salario',
@@ -64,7 +73,7 @@ export async function updateSalarySource(formData: FormData) {
       orden: entero(formData, 'orden', 0),
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id));
   revalidarSalario();
 }
 
@@ -72,7 +81,7 @@ export async function updateSalarySource(formData: FormData) {
 export async function deleteSalarySource(formData: FormData) {
   const id = String(formData.get('id'));
   const supabase = createSupabaseServerClient();
-  await supabase.from('salary_sources').delete().eq('id', id);
+  verificar(await supabase.from('salary_sources').delete().eq('id', id));
   revalidarSalario();
 }
 
@@ -84,7 +93,7 @@ export async function addSalaryDeduction(formData: FormData) {
 
   const tipo = String(formData.get('tipo') || 'otro');
   const supabase = createSupabaseServerClient();
-  await supabase.from('salary_deductions').insert({
+  verificar(await supabase.from('salary_deductions').insert({
     account_id: accountId,
     salary_source_id: String(formData.get('salary_source_id')),
     nombre: String(formData.get('nombre') || '').trim() || 'Descuento',
@@ -96,7 +105,7 @@ export async function addSalaryDeduction(formData: FormData) {
     cuotas_pagadas_inicial:
       tipo === 'prestamo' ? Math.max(0, entero(formData, 'cuotas_pagadas_inicial', 0)) : 0,
     orden: entero(formData, 'orden', 0),
-  });
+  }));
   revalidarSalario();
 }
 
@@ -104,7 +113,7 @@ export async function updateSalaryDeduction(formData: FormData) {
   const id = String(formData.get('id'));
   const tipo = String(formData.get('tipo') || 'otro');
   const supabase = createSupabaseServerClient();
-  await supabase
+  verificar(await supabase
     .from('salary_deductions')
     .update({
       nombre: String(formData.get('nombre') || '').trim() || 'Descuento',
@@ -117,14 +126,14 @@ export async function updateSalaryDeduction(formData: FormData) {
       orden: entero(formData, 'orden', 0),
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id));
   revalidarSalario();
 }
 
 export async function deleteSalaryDeduction(formData: FormData) {
   const id = String(formData.get('id'));
   const supabase = createSupabaseServerClient();
-  await supabase.from('salary_deductions').delete().eq('id', id);
+  verificar(await supabase.from('salary_deductions').delete().eq('id', id));
   revalidarSalario();
 }
 
@@ -148,7 +157,7 @@ async function registrar(formData: FormData, estado: 'pagado' | 'omitido') {
   const user = await getAuthUser();
 
   const supabase = createSupabaseServerClient();
-  await supabase.from('salary_deduction_payments').upsert(
+  verificar(await supabase.from('salary_deduction_payments').upsert(
     {
       account_id: accountId,
       salary_deduction_id: String(formData.get('id')),
@@ -161,7 +170,7 @@ async function registrar(formData: FormData, estado: 'pagado' | 'omitido') {
       created_by: user?.id ?? null,
     },
     { onConflict: 'salary_deduction_id,periodo' }
-  );
+  ));
   revalidarSalario();
 }
 
@@ -176,10 +185,10 @@ export async function omitirDescuento(formData: FormData) {
 /** Borra el registro del período: el concepto vuelve a quedar pendiente. */
 export async function revertirDescuento(formData: FormData) {
   const supabase = createSupabaseServerClient();
-  await supabase
+  verificar(await supabase
     .from('salary_deduction_payments')
     .delete()
     .eq('salary_deduction_id', String(formData.get('id')))
-    .eq('periodo', periodoDe(formData));
+    .eq('periodo', periodoDe(formData)));
   revalidarSalario();
 }
