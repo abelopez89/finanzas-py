@@ -272,6 +272,15 @@ derivar la lista a partir de las props en vez de pasarlas directo,
 memoizarla con `useMemo` sobre esas props (ver `PanelRescateHoy.tsx` y
 `RescatadoPorMetodo.tsx`).
 
+El hook además espera cada acción: mientras no terminó, el parche de esa fila
+sobrevive a cualquier dato nuevo que llegue (puede ser uno leído antes de
+guardar); al terminar, bien o mal, hace `router.refresh()`, y si falló avisa
+con un `alert`. Antes la promesa se ignoraba: cuando el servidor guardaba pero
+la respuesta no llegaba al navegador (pasó en /salario, en medio de una ráfaga
+de renovaciones de sesión), la fila volvía al dato viejo a los 10 segundos sin
+ningún aviso, aunque la base estuviera bien. Por lo mismo, las acciones nuevas
+no deberían ignorar el `error` de Supabase: que fallen, para que se vea.
+
 ### Previsiones: pendientes de cualquier período, no solo el vigente
 
 `/previsiones` calcula el saldo al cierre del período vigente restando los

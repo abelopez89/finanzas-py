@@ -212,6 +212,24 @@ export default function TarjetaSalario({
   const [editandoSalario, setEditandoSalario] = useState(false);
   const [configurando, setConfigurando] = useState<string | null>(null);
   const [editandoMovil, setEditandoMovil] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+
+  // Guardar de "Editar salario" y "Configurar": sin esto, mientras la
+  // pantalla no respondía se podía tocar Guardar varias veces y cada toque
+  // viajaba al servidor (se vieron 7 seguidos). Si la acción falla se avisa
+  // en vez de romper la página, y el formulario queda abierto.
+  const guardarConfig = async (accion: AccionServidor, fd: FormData, cerrar: () => void) => {
+    if (guardando) return;
+    setGuardando(true);
+    try {
+      await accion(fd);
+      cerrar();
+    } catch {
+      window.alert('No se pudo guardar el cambio. Revisá la conexión y volvé a intentar.');
+    } finally {
+      setGuardando(false);
+    }
+  };
   const [, startTransition] = useTransition();
   // Se pasa la prop tal cual: useFilasOptimistas suelta los parches cuando
   // la lista cambia de referencia (ver CLAUDE.md).
@@ -313,10 +331,7 @@ export default function TarjetaSalario({
 
         {editandoSalario && (
           <form
-            action={async (fd) => {
-              await acciones.updateSource(fd);
-              setEditandoSalario(false);
-            }}
+            action={(fd) => guardarConfig(acciones.updateSource, fd, () => setEditandoSalario(false))}
             className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"
           >
             <input type="hidden" name="id" value={salario.id} />
@@ -361,7 +376,9 @@ export default function TarjetaSalario({
               Activo
             </label>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
-              <button className="btn-primary">Guardar</button>
+              <button className="btn-primary" disabled={guardando}>
+                {guardando ? 'Guardando…' : 'Guardar'}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -501,10 +518,7 @@ export default function TarjetaSalario({
 
                 {configurando === d.id && (
                   <form
-                    action={async (fd) => {
-                      await acciones.updateDeduction(fd);
-                      setConfigurando(null);
-                    }}
+                    action={(fd) => guardarConfig(acciones.updateDeduction, fd, () => setConfigurando(null))}
                     className="mt-3 grid grid-cols-1 gap-3 rounded-lg bg-canvas/60 p-3 sm:grid-cols-2"
                   >
                     <input type="hidden" name="id" value={d.id} />
@@ -514,7 +528,9 @@ export default function TarjetaSalario({
                       Activo
                     </label>
                     <div className="flex flex-wrap gap-2 sm:col-span-2">
-                      <button className="btn-primary">Guardar</button>
+                      <button className="btn-primary" disabled={guardando}>
+                {guardando ? 'Guardando…' : 'Guardar'}
+              </button>
                       <button
                         type="button"
                         onClick={() => {
