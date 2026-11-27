@@ -235,7 +235,9 @@ Patrón compartido por `GastosEntriesTable`, `IngresosEntriesTable` y
 formulario (día o fecha + monto) siempre visible en su propia celda de la
 tabla. En Extras, el nombre y el método también se editan, pero en la celda
 del nombre (campos con aspecto de texto) y se envían con el Guardar de la
-fila vía el atributo `form=`. En la tarjeta móvil ese mismo formulario queda
+fila vía el atributo `form=`. El nombre es un `<textarea>` que crece
+(`NombreEditable`), no un `<input>`: un input de una línea cortaba los
+nombres largos que, como texto, pasaban a un segundo renglón. En la tarjeta móvil ese mismo formulario queda
 oculto por defecto (mostrar 3-4 campos apilados por tarjeta se ve muy
 cargado): un estado local `editandoMovil` por componente, y un botón
 "Editar"/"Cerrar" en las acciones (solo cuando `compacto`), alternan entre
