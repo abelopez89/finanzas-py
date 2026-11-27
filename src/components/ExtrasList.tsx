@@ -9,6 +9,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import { EmptyState } from '@/components/ui/Layout';
 import { IconPapelera } from '@/components/ui/Icons';
 import AvisoFinDeSemana from '@/components/ui/AvisoFinDeSemana';
+import NombreEditable from '@/components/ui/NombreEditable';
 import { estaVencido, estaPorVencer, diasParaVencer, formatFechaDMA } from '@/lib/period';
 import { useFilasOptimistas, datosDe, type AccionServidor } from '@/components/useFilasOptimistas';
 
@@ -424,15 +425,12 @@ export default function ExtrasList({
                           se ve como texto, y se guarda con el Guardar de la fila
                           (form=), igual que el método de abajo. */}
                       {it.estado === 'pendiente' ? (
-                        <input
+                        <NombreEditable
                           form={idFormEscritorio(it)}
                           name="nombre"
                           defaultValue={it.nombre}
                           key={`nombre-${it.nombre}`}
-                          aria-label="Nombre"
-                          title="Editar nombre"
-                          required
-                          className="-ml-1 block w-full min-w-[10rem] rounded border-0 bg-transparent px-1 py-0 font-medium text-ink hover:bg-canvas focus:outline-none focus:ring-1 focus:ring-pine-600"
+                          className="-ml-1 min-w-[12rem] rounded border-0 bg-transparent px-1 py-0 font-medium leading-snug text-ink hover:bg-canvas focus:outline-none focus:ring-1 focus:ring-pine-600"
                         />
                       ) : (
                         <span className="block font-medium text-ink">{it.nombre}</span>

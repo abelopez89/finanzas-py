@@ -443,7 +443,9 @@ export async function deleteIncomeExtra(formData: FormData) {
  */
 export async function updateExpenseExtra(formData: FormData) {
   const id = String(formData.get('id'));
-  const nombre = String(formData.get('nombre') ?? '').trim();
+  // En escritorio el nombre viene de un <textarea>: un salto de línea
+  // pegado se guarda como espacio.
+  const nombre = String(formData.get('nombre') ?? '').replace(/\s+/g, ' ').trim();
   const monto = Number(formData.get('monto')) || 0;
   const fecha_vencimiento = String(formData.get('fecha_vencimiento') ?? '');
   const payment_method_id = String(formData.get('payment_method_id') || '') || null;
@@ -474,7 +476,9 @@ export async function updateExpenseExtra(formData: FormData) {
 
 export async function updateIncomeExtra(formData: FormData) {
   const id = String(formData.get('id'));
-  const nombre = String(formData.get('nombre') ?? '').trim();
+  // En escritorio el nombre viene de un <textarea>: un salto de línea
+  // pegado se guarda como espacio.
+  const nombre = String(formData.get('nombre') ?? '').replace(/\s+/g, ' ').trim();
   const monto = Number(formData.get('monto')) || 0;
   const fecha_aplicacion = String(formData.get('fecha_aplicacion') ?? '');
   if (!fecha_aplicacion) return;
