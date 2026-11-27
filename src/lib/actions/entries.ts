@@ -443,15 +443,18 @@ export async function deleteIncomeExtra(formData: FormData) {
  */
 export async function updateExpenseExtra(formData: FormData) {
   const id = String(formData.get('id'));
+  const nombre = String(formData.get('nombre') ?? '').trim();
   const monto = Number(formData.get('monto')) || 0;
   const fecha_vencimiento = String(formData.get('fecha_vencimiento') ?? '');
   const payment_method_id = String(formData.get('payment_method_id') || '') || null;
   if (!fecha_vencimiento) return;
 
   const supabase = createSupabaseServerClient();
-  await supabase
+  const { error } = await supabase
     .from('expense_entries')
     .update({
+      // Vacío = no se tocó el nombre (por ejemplo, un form viejo sin el campo).
+      ...(nombre ? { nombre } : {}),
       monto,
       fecha_vencimiento,
       payment_method_id,
@@ -461,6 +464,9 @@ export async function updateExpenseExtra(formData: FormData) {
     })
     .eq('id', id)
     .eq('estado', 'pendiente');
+  // Que falle si la base rechaza el cambio: useFilasOptimistas lo avisa en
+  // vez de volver al dato viejo en silencio.
+  if (error) throw new Error(`No se pudo guardar el extra: ${error.message}`);
 
   revalidatePath('/extras');
   revalidatePath('/previsiones');
@@ -468,14 +474,17 @@ export async function updateExpenseExtra(formData: FormData) {
 
 export async function updateIncomeExtra(formData: FormData) {
   const id = String(formData.get('id'));
+  const nombre = String(formData.get('nombre') ?? '').trim();
   const monto = Number(formData.get('monto')) || 0;
   const fecha_aplicacion = String(formData.get('fecha_aplicacion') ?? '');
   if (!fecha_aplicacion) return;
 
   const supabase = createSupabaseServerClient();
-  await supabase
+  const { error } = await supabase
     .from('income_entries')
     .update({
+      // Vacío = no se tocó el nombre (por ejemplo, un form viejo sin el campo).
+      ...(nombre ? { nombre } : {}),
       monto,
       fecha_aplicacion,
       periodo: toISODate(getInicioPeriodoActual(new Date(`${fecha_aplicacion}T00:00:00Z`))),
@@ -484,6 +493,9 @@ export async function updateIncomeExtra(formData: FormData) {
     })
     .eq('id', id)
     .eq('estado', 'pendiente');
+  // Que falle si la base rechaza el cambio: useFilasOptimistas lo avisa en
+  // vez de volver al dato viejo en silencio.
+  if (error) throw new Error(`No se pudo guardar el extra: ${error.message}`);
 
   revalidatePath('/extras');
   revalidatePath('/previsiones');

@@ -232,8 +232,10 @@ recargar; los filtros de estado/rango de fecha se resuelven vía
 
 Patrón compartido por `GastosEntriesTable`, `IngresosEntriesTable` y
 `ExtrasList`: en escritorio, la fila pendiente/editable muestra su
-formulario (día o fecha + monto, y método en Extras) siempre visible en su
-propia celda de la tabla. En la tarjeta móvil ese mismo formulario queda
+formulario (día o fecha + monto) siempre visible en su propia celda de la
+tabla. En Extras, el nombre y el método también se editan, pero en la celda
+del nombre (campos con aspecto de texto) y se envían con el Guardar de la
+fila vía el atributo `form=`. En la tarjeta móvil ese mismo formulario queda
 oculto por defecto (mostrar 3-4 campos apilados por tarjeta se ve muy
 cargado): un estado local `editandoMovil` por componente, y un botón
 "Editar"/"Cerrar" en las acciones (solo cuando `compacto`), alternan entre

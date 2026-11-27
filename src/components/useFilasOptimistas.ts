@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type ParcheFila = {
+  nombre?: string;
   estado?: string;
   monto?: number;
   dia?: number;

@@ -139,6 +139,7 @@ export default function ExtrasList({
       ? (metodos.find((m) => m.id === metodoIdNuevo)?.nombre ?? null)
       : it.metodoNombre;
     ejecutar(it.id, updateExtra, fd, {
+      nombre: String(fd.get('nombre') || '').trim() || it.nombre,
       monto: Number(fd.get('monto')) || 0,
       fecha,
       metodoId: metodoIdNuevo,
@@ -147,8 +148,9 @@ export default function ExtrasList({
     setEditandoMovil(null);
   };
 
-  // En escritorio el form lleva id para que el selector de método, que vive
-  // en la celda del nombre (ver la tabla), se envíe con él vía `form=`.
+  // En escritorio el form lleva id para que el nombre y el selector de
+  // método, que viven en la celda del nombre (ver la tabla), se envíen con
+  // él vía `form=`.
   const idFormEscritorio = (it: Extra) => `extra-${it.id}`;
 
   const CamposEdicion = ({ it, compacto }: { it: Extra; compacto?: boolean }) => (
@@ -157,6 +159,17 @@ export default function ExtrasList({
       onSubmit={(e) => guardar(it, e)}
       className={`flex items-center gap-2 ${compacto ? 'flex-wrap' : 'flex-nowrap'}`}
     >
+      {compacto && (
+        <input
+          name="nombre"
+          defaultValue={it.nombre}
+          key={`nombre-${it.nombre}`}
+          aria-label="Nombre"
+          placeholder="Nombre"
+          className="field-sm w-full"
+          required
+        />
+      )}
       <FechaInput
         name={campoFecha}
         defaultValue={it.fecha ?? ''}
@@ -407,7 +420,23 @@ export default function ExtrasList({
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ochre-600" title="Por vencer" />
                     ) : null}
                     <span className="min-w-0">
-                      <span className="block font-medium text-ink">{it.nombre}</span>
+                      {/* Pendiente: el nombre se edita acá mismo, con un campo que
+                          se ve como texto, y se guarda con el Guardar de la fila
+                          (form=), igual que el método de abajo. */}
+                      {it.estado === 'pendiente' ? (
+                        <input
+                          form={idFormEscritorio(it)}
+                          name="nombre"
+                          defaultValue={it.nombre}
+                          key={`nombre-${it.nombre}`}
+                          aria-label="Nombre"
+                          title="Editar nombre"
+                          required
+                          className="-ml-1 block w-full min-w-[10rem] rounded border-0 bg-transparent px-1 py-0 font-medium text-ink hover:bg-canvas focus:outline-none focus:ring-1 focus:ring-pine-600"
+                        />
+                      ) : (
+                        <span className="block font-medium text-ink">{it.nombre}</span>
+                      )}
                       {/* Pendiente: el método se edita acá mismo, con un selector
                           que se ve como el texto gris de Mes actual, en vez de
                           una columna propia que partía las filas en dos. Se
